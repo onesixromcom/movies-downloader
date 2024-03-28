@@ -101,15 +101,15 @@ init_segments_lists() {
 	debug_log "total before skip: $TOTAL_ITEMS"
 
 	# Removing first skipped videos.
-	if [ ! -z "$SKIP" ]; then
+	if [ $SKIP -gt 0 ]; then
 		for (( i=0;i<$(($SKIP));i++)); do
 			#echo "skip ${IFRAMES_LIST[${i}]}"
 			unset IFRAMES_LIST[$i]
 		done
 	fi
 
-	# Unset video we dont want to doanload.
-	if [ ! -z "$TOTAL" ]; then
+	# Unset video we dont want to download.
+	if [ $TOTAL -gt 0 ]; then
 		echo "Set total frames to: $TOTAL"
 		for (( i = $(($SKIP)) + $(($TOTAL)); i < (($TOTAL_ITEMS)); i++ )); do
 			#echo "unset ${IFRAMES_LIST[${i}]}"

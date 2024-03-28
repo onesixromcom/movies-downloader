@@ -54,7 +54,6 @@ if [ -z "$URL" ]; then
 fi 
 
 for i in "${args[@]}"; do
-  echo "$i"
   case "$i" in
     --season=*)
       SEASON="${i#*=}"
@@ -76,9 +75,11 @@ for i in "${args[@]}"; do
       ;;  
     --skip=*)
       SKIP="${i#*=}"
+      SKIP=$(($SKIP + 0)) # convert to int
       ;;  
     --total=*)
       TOTAL="${i#*=}"
+      TOTAL=$(($TOTAL + 0)) # convert to int
       ;;
     --playlist=*)
       PLAYLIST_NUM="0_${i#*=}"
@@ -86,6 +87,14 @@ for i in "${args[@]}"; do
     --debug)
       DEBUG="1"
       ;;
+    --help)
+      exit
+	  ;;
+	--clean)
+	  echo "Clear all variables and tmp segments."
+	  rm -rf $VARS_DIR/*
+	  rm -rf $OUTPUT_SEGMENTS/*
+	  ;;  
     *)
       printf "***************************\n"
       printf "* Error: Invalid argument.*\n"

@@ -62,7 +62,7 @@ init_segments_lists() {
 	echo "total before skip: $TOTAL_ITEMS"
 
 	# Skip videos from beginning.
-	if [ ! -z "$SKIP" ]; then
+	if [ $SKIP -gt 0 ]; then
 		for (( i=0;i<$(($SKIP));i++)); do
 			echo "skip ${PLAYER_IFRAMES[${i}]}"
 			unset PLAYER_IFRAMES[$i]
@@ -71,7 +71,7 @@ init_segments_lists() {
 	
 	
 	# Unset video we dont want to download.
-	if [ ! -z "$TOTAL" ]; then
+	if [ $TOTAL -gt 0 ]; then
 		echo "Set total frames to: $TOTAL"
 		for (( i = $(($SKIP)) + $(($TOTAL)); i < (($TOTAL_ITEMS)); i++ )); do
 			#echo "unset ${IFRAMES_LIST[${i}]}"
