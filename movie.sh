@@ -8,7 +8,7 @@
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.club")
+SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.club" "uaserial.com")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -70,8 +70,8 @@ for i in "${args[@]}"; do
     --output=*)
       OUTPUT="${i#*=}"
       ;;
-    --use-ffmpeg=*)
-      USE_FFMPEG_DOWNLOADER="${i#*=}"
+    --use-ffmpeg)
+      USE_FFMPEG_DOWNLOADER="1"
       ;;  
     --skip=*)
       SKIP="${i#*=}"
