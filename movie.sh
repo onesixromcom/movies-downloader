@@ -8,7 +8,7 @@
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.club" "uaserial.com")
+SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.me" "uaserial.com")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -37,8 +37,11 @@ DEBUG="0"
 VARS_DIR="./vars"
 FILE_QUEUE="$VARS_DIR/queue.list"
 FILE_FFMPEG_LIST="$VARS_DIR/list-ffmpeg.txt"
+# List of links to download with wget.
 FILE_WGET_LIST="$VARS_DIR/wget-src.list"
+# Destination location for each link
 FILE_WGET_DEST="$VARS_DIR/wget-dest.list"
+# Store line counter
 FILE_COUNTER="$VARS_DIR/counter"
 FILE_VIDEO_NAME="$VARS_DIR/video-name"
 
@@ -47,9 +50,25 @@ args=("$@")
 URL=${args[0]}
 unset args[0]
 
+# Colors 
+CGreen='\033[0;32m'        # Green
+CN='\033[0m' # No Color
+
 # Check if link to page is present.
 if [ -z "$URL" ]; then
     echo "No url supplied. Please set collection name. (ex: https://uaserials.pro/filmy/genre-action/some-movie.html)"
+	echo -e "Downloader works with websites: $CGreen uaserials.pro, uakino.me, uaserial.com$CN"
+	printf 'You can use additional parameters: 
+\t--season=1\tSpecific season for show.
+\t--sound=N\tSet Audio track.
+\t--quality=N\tQuality: 480, 720, 1080 if available
+\t--dry-run\tWill create all files needed for queue download or check if movie is available for download in case of using ffmepg downloader.
+\t--output=PATH\tSet folder to download movie. Default is /home/$USER/Videos/movies
+\t--use-ffmpeg\tSwitch to ffmpeg downloader. Could be the issue when one of the segment goes timeout. Download will stuck and will be started from the start next run.
+\t--skip=N\tSkip first N videos from season.
+\t--total=N\tTotal videos to be downloaded if episodes are available.
+\t--playlist=1\tUseful for uakino.club when there are more than 1 season playlists.
+'
     exit
 fi 
 
@@ -147,9 +166,15 @@ get_remote_video_folder() {
 # Create files with segments list for wget and ffmpeg.
 # param 1 - m3u8 playlist url
 # param 2 - movie name
+# param 3 - 0/1 to use full video path from playlist
 segments_create() {
 	[ -d $OUTPUT_SEGMENTS ] || mkdir -p $OUTPUT_SEGMENTS
 	MOVIE_NAME="$2"
+	USE_FULL_PATH=0
+	if [ $3 -eq 1 ]; then
+		USE_FULL_PATH=1
+	fi
+	
 	FILE_MOVIE_VARS="$VARS_DIR/$MOVIE_NAME.vars"
 	FILE_FFMPEG_LIST="$VARS_DIR/$MOVIE_NAME.ffmpeg"
 	
@@ -161,6 +186,8 @@ segments_create() {
 	   rm $FILE_MOVIE_VARS
 	fi
 	
+	# This solution is working when only segments filenames are present in playlist.
+	# Since new updates from uakino.me it's not working.
 	VIDEO_FOLDER=$(get_remote_video_folder $1)
 
 	OUTPUT_MOVIE_SEGMENTS=$OUTPUT_SEGMENTS
@@ -177,11 +204,19 @@ segments_create() {
 	# Download playlist and extract only segments links.
 	wget $1 --output-document=pls.file --no-verbose
 	LIST=$(grep segment pls.file)
-	rm pls.file
+	# rm pls.file
 	for f in $LIST;
 	do
-		echo "file '$OUTPUT_MOVIE_SEGMENTS/$f'" >> $FILE_FFMPEG_LIST
-		echo "$VIDEO_FOLDER$f" >> $FILE_WGET_LIST
+		
+		if [ $USE_FULL_PATH -eq 1 ]; then
+			NEW_FILE=$(basename $f)
+			echo "file '$OUTPUT_MOVIE_SEGMENTS/$NEW_FILE'" >> $FILE_FFMPEG_LIST
+			echo "$f" >> $FILE_WGET_LIST
+		else
+			echo "file '$OUTPUT_MOVIE_SEGMENTS/$f'" >> $FILE_FFMPEG_LIST
+			echo "$VIDEO_FOLDER$f" >> $FILE_WGET_LIST
+		fi
+		
 		echo "$OUTPUT_MOVIE_SEGMENTS" >> $FILE_WGET_DEST
 	done
 	echo "Saving lists files done."
@@ -282,6 +317,8 @@ echo "total $TOTAL"
 
 segments_remove_tmp_files
 init_segments_lists
+
+exit
 
 segments_download
 

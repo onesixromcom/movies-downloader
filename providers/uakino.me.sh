@@ -17,7 +17,7 @@ uakino_get_list_id() {
 
 uakino_get_json_list() {
 	declare SELECTOR=$(echo "li[data-id=\"${PLAYLIST_NUM}\"]")
-	echo "https://uakino.club/engine/ajax/playlists.php?news_id=$1&xfield=playlist" |
+	echo "https://uakino.me/engine/ajax/playlists.php?news_id=$1&xfield=playlist" |
 	wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
 	jq -r .response | # get value by response key
 	hxnormalize -x | # normalize html
@@ -30,7 +30,7 @@ uakino_get_json_list() {
 }
 
 uakino_get_json_list2() {
-	echo "https://uakino.club/engine/ajax/playlists.php?news_id=$1&xfield=playlist" |
+	echo "https://uakino.me/engine/ajax/playlists.php?news_id=$1&xfield=playlist" |
 	wget -O- -i- --no-verbose --quiet | 
 	jq -r .response | # get value by response key
 	hxnormalize -x | # normalize html
@@ -138,7 +138,7 @@ init_segments_lists() {
 			if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
 				ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
 			else
-				segments_create $PLAYLIST $MOVIENAME
+				segments_create $PLAYLIST $MOVIENAME 1
 			fi
 		fi
 		echo "----------------------------------------------"
