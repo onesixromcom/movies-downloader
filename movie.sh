@@ -204,7 +204,7 @@ segments_create() {
 	# Download playlist and extract only segments links.
 	wget $1 --output-document=pls.file --no-verbose
 	LIST=$(grep segment pls.file)
-	# rm pls.file
+	rm pls.file
 	for f in $LIST;
 	do
 		
@@ -317,8 +317,6 @@ echo "total $TOTAL"
 
 segments_remove_tmp_files
 init_segments_lists
-
-exit
 
 segments_download
 
