@@ -33,7 +33,10 @@ USE_FFMPEG_DOWNLOADER=0
 # Debug flag to save all downloaded files
 DEBUG="0"
 
+DIR_SCRIPTS="./scripts"
 # Temp files to store info.
+DIR_TMP="./tmp"
+# Variables files to store movies info.
 VARS_DIR="./vars"
 FILE_QUEUE="$VARS_DIR/queue.list"
 FILE_FFMPEG_LIST="$VARS_DIR/list-ffmpeg.txt"
@@ -57,9 +60,8 @@ CN='\033[0m' # No Color
 # Check if link to page is present.
 if [ -z "$URL" ]; then
     echo "No url supplied. Please set collection name. (ex: https://uaserials.pro/filmy/genre-action/some-movie.html)"
-	echo -e "Downloader works with websites: $CGreen uaserials.pro, uakino.me, uaserial.com$CN"
-	printf 'You can use additional parameters: 
-\t--season=1\tSpecific season for show.
+    echo -e "Downloader works with websites: $CGreen ${SUPPORTER_PROVIDERS[*]} $CN"
+    printf 'You can use additional parameters: 
 \t--sound=N\tSet Audio track.
 \t--quality=N\tQuality: 480, 720, 1080 if available
 \t--dry-run\tWill create all files needed for queue download or check if movie is available for download in case of using ffmepg downloader.
@@ -69,6 +71,8 @@ if [ -z "$URL" ]; then
 \t--total=N\tTotal videos to be downloaded if episodes are available.
 \t--playlist=1\tUseful for uakino.club when there are more than 1 season playlists.
 '
+    echo -e "Params for $CGreen uaserials.pro: $CN";
+    printf '\t--season="1 сезон"\tSpecific season for show in text.'
     exit
 fi 
 
@@ -108,12 +112,13 @@ for i in "${args[@]}"; do
       ;;
     --help)
       exit
-	  ;;
-	--clean)
-	  echo "Clear all variables and tmp segments."
-	  rm -rf $VARS_DIR/*
-	  rm -rf $OUTPUT_SEGMENTS/*
-	  ;;  
+      ;;
+    --clean)
+      echo "Clear all variables and tmp segments."
+      rm -rf $VARS_DIR/*
+    #   rm -rf $DIR_TMP/*
+      rm -rf $OUTPUT_SEGMENTS/*
+      ;;  
     *)
       printf "***************************\n"
       printf "* Error: Invalid argument.*\n"
@@ -127,40 +132,43 @@ done
 # ============== Helpers ==========================
 # =================================================
 
+# Check if provider from url is supported.
 check_supported_provider() {
-	if [[ ! " ${SUPPORTER_PROVIDERS[@]} " =~ " $PROVIDER_NAME " ]]; then
-			echo "Wrong website name ($PROVIDER_NAME) was used in input.";
-			echo "Please use one of:";
-			for p in ${SUPPORTER_PROVIDERS[@]}; do echo $p; done;
-			exit 1;
-	fi
+    if [[ ! " ${SUPPORTER_PROVIDERS[@]} " =~ " $PROVIDER_NAME " ]]; then
+            echo "Wrong website name ($PROVIDER_NAME) was used in input.";
+            echo "Please use one of:";
+            for p in ${SUPPORTER_PROVIDERS[@]}; do echo $p; done;
+            exit 1;
+    fi
 }
 
+# Get host from URL.
 get_host() {
-	echo $1 |
-	awk -F[/:] '{print $4}'
+    echo $1 |
+    awk -F[/:] '{print $4}'
 }
 
+# Show debug info.
 debug_log() {
-	if [ -z "$DEBUG" ]; then
-		return
-	fi
-	TMP_VAR=$1
-	
-	if [[ "$(declare -p TMP_VAR)" =~ "declare -a" ]]; then
-		for tmp_v in $TMP_VAR
-		do
-			echo $tmp_v
-		done
-	else
-		echo $TMP_VAR
-	fi
+    if [ -z "$DEBUG" ]; then
+        return
+    fi
+    TMP_VAR=$1
+    
+    if [[ "$(declare -p TMP_VAR)" =~ "declare -a" ]]; then
+        for tmp_v in $TMP_VAR
+        do
+            echo $tmp_v
+        done
+    else
+        echo $TMP_VAR
+    fi
 }
 
 # Used to create segment url
 get_remote_video_folder() {
-	echo $1 |
-	sed -n 's/index.m3u8//p'
+    echo $1 |
+    sed -n 's/index.m3u8//p'
 }
 
 # Create files with segments list for wget and ffmpeg.
@@ -168,134 +176,136 @@ get_remote_video_folder() {
 # param 2 - movie name
 # param 3 - 0/1 to use full video path from playlist
 segments_create() {
-	[ -d $OUTPUT_SEGMENTS ] || mkdir -p $OUTPUT_SEGMENTS
-	MOVIE_NAME="$2"
-	USE_FULL_PATH=0
-	if [ $3 -eq 1 ]; then
-		USE_FULL_PATH=1
-	fi
-	
-	FILE_MOVIE_VARS="$VARS_DIR/$MOVIE_NAME.vars"
-	FILE_FFMPEG_LIST="$VARS_DIR/$MOVIE_NAME.ffmpeg"
-	
-	# Remove previously created files.
+    [ -d $OUTPUT_SEGMENTS ] || mkdir -p $OUTPUT_SEGMENTS
+    MOVIE_NAME="$2"
+    USE_FULL_PATH=0
+
+    # todo: error here if param is string
+    if [ $3 -eq 1 ]; then
+        USE_FULL_PATH=1
+    fi
+    
+    FILE_MOVIE_VARS="$VARS_DIR/$MOVIE_NAME.vars"
+    FILE_FFMPEG_LIST="$VARS_DIR/$MOVIE_NAME.ffmpeg"
+    
+    # Remove previously created files.
     if test -f "$FILE_FFMPEG_LIST"; then
-	   rm $FILE_FFMPEG_LIST
-	fi
-	if test -f "$FILE_MOVIE_VARS"; then
-	   rm $FILE_MOVIE_VARS
-	fi
-	
-	# This solution is working when only segments filenames are present in playlist.
-	# Since new updates from uakino.me it's not working.
-	VIDEO_FOLDER=$(get_remote_video_folder $1)
+       rm $FILE_FFMPEG_LIST
+    fi
+    if test -f "$FILE_MOVIE_VARS"; then
+       rm $FILE_MOVIE_VARS
+    fi
+    
+    # This solution is working when only segments filenames are present in playlist.
+    # Since new updates from uakino.me it's not working.
+    VIDEO_FOLDER=$(get_remote_video_folder $1)
 
-	OUTPUT_MOVIE_SEGMENTS=$OUTPUT_SEGMENTS
-	OUTPUT_MOVIE_SEGMENTS+="/$MOVIE_NAME"
-	[ -d $OUTPUT_MOVIE_SEGMENTS ] || mkdir -p $OUTPUT_MOVIE_SEGMENTS
+    OUTPUT_MOVIE_SEGMENTS=$OUTPUT_SEGMENTS
+    OUTPUT_MOVIE_SEGMENTS+="/$MOVIE_NAME"
+    [ -d $OUTPUT_MOVIE_SEGMENTS ] || mkdir -p $OUTPUT_MOVIE_SEGMENTS
 
-	# Save variables per movie.
-	echo "MOVIE_FOLDER_SEGMENTS=$OUTPUT_MOVIE_SEGMENTS" >> $FILE_MOVIE_VARS
-	echo "MOVIE_NAME=$MOVIE_NAME" >> $FILE_MOVIE_VARS
-	echo "MOVIE_FINAL_FILE=$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
-	echo "MOVIE_FFMPEG=$FILE_FFMPEG_LIST" >> $FILE_MOVIE_VARS
-	echo "MOVIE_OUTPUT=$OUTPUT$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
-	
-	# Download playlist and extract only segments links.
-	wget $1 --output-document=pls.file --no-verbose
-	LIST=$(grep segment pls.file)
-	rm pls.file
-	for f in $LIST;
-	do
-		
-		if [ $USE_FULL_PATH -eq 1 ]; then
-			NEW_FILE=$(basename $f)
-			echo "file '$OUTPUT_MOVIE_SEGMENTS/$NEW_FILE'" >> $FILE_FFMPEG_LIST
-			echo "$f" >> $FILE_WGET_LIST
-		else
-			echo "file '$OUTPUT_MOVIE_SEGMENTS/$f'" >> $FILE_FFMPEG_LIST
-			echo "$VIDEO_FOLDER$f" >> $FILE_WGET_LIST
-		fi
-		
-		echo "$OUTPUT_MOVIE_SEGMENTS" >> $FILE_WGET_DEST
-	done
-	echo "Saving lists files done."
+    # Save variables per movie.
+    echo "MOVIE_FOLDER_SEGMENTS=$OUTPUT_MOVIE_SEGMENTS" >> $FILE_MOVIE_VARS
+    echo "MOVIE_NAME=$MOVIE_NAME" >> $FILE_MOVIE_VARS
+    echo "MOVIE_FINAL_FILE=$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
+    echo "MOVIE_FFMPEG=$FILE_FFMPEG_LIST" >> $FILE_MOVIE_VARS
+    echo "MOVIE_OUTPUT=$OUTPUT$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
+    
+    # Download playlist and extract only segments links.
+    wget $1 --output-document=pls.file --no-verbose
+    LIST=$(grep segment pls.file)
+    rm pls.file
+    for f in $LIST;
+    do
+        
+        if [ $USE_FULL_PATH -eq 1 ]; then
+            NEW_FILE=$(basename $f)
+            echo "file '$OUTPUT_MOVIE_SEGMENTS/$NEW_FILE'" >> $FILE_FFMPEG_LIST
+            echo "$f" >> $FILE_WGET_LIST
+        else
+            echo "file '$OUTPUT_MOVIE_SEGMENTS/$f'" >> $FILE_FFMPEG_LIST
+            echo "$VIDEO_FOLDER$f" >> $FILE_WGET_LIST
+        fi
+        
+        echo "$OUTPUT_MOVIE_SEGMENTS" >> $FILE_WGET_DEST
+    done
+    echo "Saving lists files done."
 }
 
 # Download segments and create final movie file on success.
 segments_download() {
-	if test ! -f "$FILE_WGET_LIST"; then
-		echo "No previous segments found."
-		return
-	fi
-	
-	# If counter file already present we shuld continue downloading.
-	COUNTER=0
-	if test -f "$FILE_COUNTER"; then
-	   COUNTER=$(<"$FILE_COUNTER")
-	   echo "Continue downloading from $COUNTER ..."
-	else
-		# Create counter file.
-		echo 0 > $FILE_COUNTER
-	fi
-	TOTAL_FILES=$(sed -n '$=' $FILE_WGET_LIST)
-	readarray -t FILE_LIST < $FILE_WGET_LIST
-	readarray -t FILE_DEST < $FILE_WGET_DEST
+    if test ! -f "$FILE_WGET_LIST"; then
+        echo "No previous segments found."
+        return
+    fi
+    
+    # If counter file already present we shuld continue downloading.
+    COUNTER=0
+    if test -f "$FILE_COUNTER"; then
+       COUNTER=$(<"$FILE_COUNTER")
+       echo "Continue downloading from $COUNTER ..."
+    else
+        # Create counter file.
+        echo 0 > $FILE_COUNTER
+    fi
+    TOTAL_FILES=$(sed -n '$=' $FILE_WGET_LIST)
+    readarray -t FILE_LIST < $FILE_WGET_LIST
+    readarray -t FILE_DEST < $FILE_WGET_DEST
 
-	for (( i=$(($COUNTER));i<=$(($TOTAL_FILES));i++)); do
-	
-		# This will retry refused connections and similar fatal errors (--retry-connrefused), 
-		# it will wait 1 second before next retry (--waitretry), it will wait a maximum of
-		# 20 seconds in case no data is received and then try again (--read-timeout),
-		# it will wait max 15 seconds before the initial connection times out (--timeout) 
-		# and finally it will retry a 2 number of times (-t 2).
-		wget --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 --directory-prefix=${FILE_DEST[${i}]} ${FILE_LIST[${i}]} 
-		
-		# Halt if segment was not available.
-		if [ ! -z "${FILE_LIST[${i}]}" ]; then
-			DOWNLOADED_FILE=$(basename ${FILE_LIST[${i}]})
-		
-			if test ! -f "${FILE_DEST[${i}]}/$DOWNLOADED_FILE"; then
-				# todo: restart script after some time.
-				echo "!! Error downloading segment. pls restart. !!"
-				exit
-			fi
-		fi
-		echo "Progress: $i / $TOTAL_FILES"
-		echo $i > $FILE_COUNTER
-	done
-	
-	echo "Download segments finished."
-	# Get all movies vars files.
-	MOVIES_LIST=$(find $VARS_DIR \( -name '*.vars' \) -type f -print | sort -R )
-	for movie_vars in $MOVIES_LIST
-	do
-		# Load variables per movie
-		. "$movie_vars"
-		ffmpeg -f concat -safe 0 -i $MOVIE_FFMPEG -c copy -bsf:a aac_adtstoasc $MOVIE_OUTPUT
-		rm -rf $MOVIE_FFMPEG
-		rm -rf $MOVIE_FOLDER_SEGMENTS
-		rm -rf $movie_vars
-	done
-	
-	segments_remove_tmp_files
-	echo "$PROGRAM_NAME finished."
-	exit
+    for (( i=$(($COUNTER));i<=$(($TOTAL_FILES));i++)); do
+    
+        # This will retry refused connections and similar fatal errors (--retry-connrefused), 
+        # it will wait 1 second before next retry (--waitretry), it will wait a maximum of
+        # 20 seconds in case no data is received and then try again (--read-timeout),
+        # it will wait max 15 seconds before the initial connection times out (--timeout) 
+        # and finally it will retry a 2 number of times (-t 2).
+        wget --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 --directory-prefix=${FILE_DEST[${i}]} ${FILE_LIST[${i}]} 
+        
+        # Halt if segment was not available.
+        if [ ! -z "${FILE_LIST[${i}]}" ]; then
+            DOWNLOADED_FILE=$(basename ${FILE_LIST[${i}]})
+        
+            if test ! -f "${FILE_DEST[${i}]}/$DOWNLOADED_FILE"; then
+                # todo: restart script after some time.
+                echo "!! Error downloading segment. pls restart. !!"
+                exit
+            fi
+        fi
+        echo "Progress: $i / $TOTAL_FILES"
+        echo $i > $FILE_COUNTER
+    done
+    
+    echo "Download segments finished."
+    # Get all movies vars files.
+    MOVIES_LIST=$(find $VARS_DIR \( -name '*.vars' \) -type f -print | sort -R )
+    for movie_vars in $MOVIES_LIST
+    do
+        # Load variables per movie
+        . "$movie_vars"
+        ffmpeg -f concat -safe 0 -i $MOVIE_FFMPEG -c copy -bsf:a aac_adtstoasc $MOVIE_OUTPUT
+        rm -rf $MOVIE_FFMPEG
+        rm -rf $MOVIE_FOLDER_SEGMENTS
+        rm -rf $movie_vars
+    done
+    
+    segments_remove_tmp_files
+    echo "$PROGRAM_NAME finished."
+    exit
 }
 
 segments_remove_tmp_files() {
-	# Remove all temp files and folders.
-	if test -f "$FILE_COUNTER"; then
-	   rm $FILE_COUNTER
-	fi
-	if test -f "$FILE_WGET_LIST"; then
-	   rm $FILE_WGET_LIST
-	fi
-	if test -f "$FILE_WGET_DEST"; then
-	   rm $FILE_WGET_DEST
-	fi
+    # Remove all temp files and folders.
+    if test -f "$FILE_COUNTER"; then
+       rm $FILE_COUNTER
+    fi
+    if test -f "$FILE_WGET_LIST"; then
+       rm $FILE_WGET_LIST
+    fi
+    if test -f "$FILE_WGET_DEST"; then
+       rm $FILE_WGET_DEST
+    fi
 
-	echo "All temp files removed."
+    echo "All temp files removed."
 }
 
 #================== START ==================
