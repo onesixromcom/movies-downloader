@@ -3,12 +3,12 @@
 # Universal movies dowloader.
 
 # Install before use:
-# sudo apt install html-xml-utils wget ffmpeg jq
+# sudo apt install html-xml-utils wget ffmpeg jq curl openssl
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.me" "uaserial.com")
+SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.me" "uaserial.com" "prmovies.host")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -24,6 +24,7 @@ DRY_RUN="0"
 OUTPUT="/home/$USER/Videos/movies/"
 OUTPUT_SEGMENTS=$OUTPUT
 OUTPUT_SEGMENTS+="segments"
+PARSE_SEGMENTS="segment"
 # Skip first N videos from season.
 SKIP=0
 # Set how many videos to download
@@ -135,10 +136,10 @@ done
 # Check if provider from url is supported.
 check_supported_provider() {
     if [[ ! " ${SUPPORTER_PROVIDERS[@]} " =~ " $PROVIDER_NAME " ]]; then
-            echo "Wrong website name ($PROVIDER_NAME) was used in input.";
-            echo "Please use one of:";
-            for p in ${SUPPORTER_PROVIDERS[@]}; do echo $p; done;
-            exit 1;
+        echo "Wrong website name ($PROVIDER_NAME) was used in input.";
+        echo "Please use one of:";
+        for p in ${SUPPORTER_PROVIDERS[@]}; do echo $p; done;
+        exit 1;
     fi
 }
 
@@ -176,6 +177,7 @@ get_remote_video_folder() {
 # param 2 - movie name
 # param 3 - 0/1 to use full video path from playlist
 segments_create() {
+    local playlist_url=$1
     [ -d $OUTPUT_SEGMENTS ] || mkdir -p $OUTPUT_SEGMENTS
     MOVIE_NAME="$2"
     USE_FULL_PATH=0
@@ -184,6 +186,8 @@ segments_create() {
     if [ $3 -eq 1 ]; then
         USE_FULL_PATH=1
     fi
+
+    echo "Creating segments fot $playlist_url"
     
     FILE_MOVIE_VARS="$VARS_DIR/$MOVIE_NAME.vars"
     FILE_FFMPEG_LIST="$VARS_DIR/$MOVIE_NAME.ffmpeg"
@@ -198,7 +202,7 @@ segments_create() {
     
     # This solution is working when only segments filenames are present in playlist.
     # Since new updates from uakino.me it's not working.
-    VIDEO_FOLDER=$(get_remote_video_folder $1)
+    VIDEO_FOLDER=$(get_remote_video_folder $playlist_url)
 
     OUTPUT_MOVIE_SEGMENTS=$OUTPUT_SEGMENTS
     OUTPUT_MOVIE_SEGMENTS+="/$MOVIE_NAME"
@@ -212,14 +216,31 @@ segments_create() {
     echo "MOVIE_OUTPUT=$OUTPUT$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
     
     # Download playlist and extract only segments links.
-    wget $1 --output-document=pls.file --no-verbose
-    LIST=$(grep segment pls.file)
-    rm pls.file
+    # Use curl of headers are present.
+    if [[ $playlist_url =~ ^file:// ]]; then
+        LIST=$(curl $playlist_url | grep $PARSE_SEGMENTS )
+    else
+      wget $playlist_url --output-document=pls.file --no-verbose
+      LIST=$(grep $PARSE_SEGMENTS pls.file)
+      rm pls.file
+    fi
+
+    # if test -f "$FILE_HEADERS"; then
+    #   # load headers from the file
+    #   local curl_headers=$(cat "$FILE_HEADERS")
+    #   LIST=$(curl_request $playlist_url $curl_headers | grep $PARSE_SEGMENTS )
+    # else
+    #   wget $playlist_url --output-document=pls.file --no-verbose
+    #   LIST=$(grep $PARSE_SEGMENTS pls.file)
+    #   rm pls.file
+    # fi
+
+    # echo "$LIST"
+
     for f in $LIST;
     do
-        
         if [ $USE_FULL_PATH -eq 1 ]; then
-            NEW_FILE=$(basename $f)
+            NEW_FILE=$(basename $f | cut -d'?' -f1)
             echo "file '$OUTPUT_MOVIE_SEGMENTS/$NEW_FILE'" >> $FILE_FFMPEG_LIST
             echo "$f" >> $FILE_WGET_LIST
         else
@@ -252,23 +273,57 @@ segments_download() {
     readarray -t FILE_LIST < $FILE_WGET_LIST
     readarray -t FILE_DEST < $FILE_WGET_DEST
 
+    DESTINATION_MOVIE_NAME=$(echo "${FILE_DEST[0]}" | awk -F'/' '{print $NF}')
+    # Headers files should be handled by providers.
+    FILE_HEADERS="$VARS_DIR/$DESTINATION_MOVIE_NAME.headers"
+    FILE_KEY="$VARS_DIR/$DESTINATION_MOVIE_NAME.key"
+    KEY_HEX=""
+    # Load headers if present
+    if test -f "$FILE_HEADERS"; then
+      echo "Header file found!!"
+      curl_headers=$(cat "$FILE_HEADERS")
+    fi
+
+    if test -f "$FILE_KEY"; then
+      KEY_HEX=$(od -tx1 -An -N 16 "$FILE_KEY" | tr -d ' ')
+    fi
+
     for (( i=$(($COUNTER));i<=$(($TOTAL_FILES));i++)); do
     
-        # This will retry refused connections and similar fatal errors (--retry-connrefused), 
-        # it will wait 1 second before next retry (--waitretry), it will wait a maximum of
-        # 20 seconds in case no data is received and then try again (--read-timeout),
-        # it will wait max 15 seconds before the initial connection times out (--timeout) 
-        # and finally it will retry a 2 number of times (-t 2).
-        wget --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 --directory-prefix=${FILE_DEST[${i}]} ${FILE_LIST[${i}]} 
+        DOWNLOADED_FILE=$(basename ${FILE_LIST[${i}]} | cut -d'?' -f1)
+        DESTINATION_FOLDER=${FILE_DEST[${i}]}
+
+        if test -f "$FILE_HEADERS"; then
+          echo "Downloading file to "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}""
+          # Equivalent curl command with wget-like features
+          local cmd="curl -L -s -S ${curl_headers} --retry 5 --retry-delay 1 --connect-timeout 15 --max-time 20 --create-dirs -o "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}" '${FILE_LIST[${i}]}'"
+          eval "$cmd"
+
+        else
+          # This will retry refused connections and similar fatal errors (--retry-connrefused), 
+          # it will wait 1 second before next retry (--waitretry), it will wait a maximum of
+          # 20 seconds in case no data is received and then try again (--read-timeout),
+          # it will wait max 15 seconds before the initial connection times out (--timeout) 
+          # and finally it will retry a 2 number of times (-t 2).
+          wget --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 --directory-prefix=${FILE_DEST[${i}]} ${FILE_LIST[${i}]} 
+        fi
+        
         
         # Halt if segment was not available.
         if [ ! -z "${FILE_LIST[${i}]}" ]; then
-            DOWNLOADED_FILE=$(basename ${FILE_LIST[${i}]})
-        
             if test ! -f "${FILE_DEST[${i}]}/$DOWNLOADED_FILE"; then
                 # todo: restart script after some time.
                 echo "!! Error downloading segment. pls restart. !!"
                 exit
+            else
+              # Videos could be encoded.
+              if [ ! -z "${KEY_HEX}" ]; then
+                # echo "Key file found! Decoding video."
+                local KEY_IV=$(od -tx1 -An -N 16 "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}" | tr -d ' ')
+                openssl enc -d -aes-128-cbc -K ${KEY_HEX} -iv ${KEY_IV} -in "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}" -out "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}e"
+                rm ${DESTINATION_FOLDER}/${DOWNLOADED_FILE}
+                mv ${DESTINATION_FOLDER}/${DOWNLOADED_FILE}e ${DESTINATION_FOLDER}/${DOWNLOADED_FILE}
+              fi 
             fi
         fi
         echo "Progress: $i / $TOTAL_FILES"
@@ -282,10 +337,17 @@ segments_download() {
     do
         # Load variables per movie
         . "$movie_vars"
+
         ffmpeg -f concat -safe 0 -i $MOVIE_FFMPEG -c copy -bsf:a aac_adtstoasc $MOVIE_OUTPUT
         rm -rf $MOVIE_FFMPEG
         rm -rf $MOVIE_FOLDER_SEGMENTS
         rm -rf $movie_vars
+        if test -f "$FILE_HEADERS"; then
+          rm -rf $FILE_HEADERS
+        fi
+        if test -f "$FILE_KEY"; then
+          rm -rf $FILE_KEY
+        fi
     done
     
     segments_remove_tmp_files
@@ -306,6 +368,15 @@ segments_remove_tmp_files() {
     fi
 
     echo "All temp files removed."
+}
+
+# 1 - url
+# 2 - headers string
+curl_request() {
+  local url="$1"
+  local header_args="$2"
+  local cmd="curl -L -s ${header_args} '${url}'"
+  eval "$cmd"
 }
 
 #================== START ==================
