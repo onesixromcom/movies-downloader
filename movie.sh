@@ -225,18 +225,6 @@ segments_create() {
       rm pls.file
     fi
 
-    # if test -f "$FILE_HEADERS"; then
-    #   # load headers from the file
-    #   local curl_headers=$(cat "$FILE_HEADERS")
-    #   LIST=$(curl_request $playlist_url $curl_headers | grep $PARSE_SEGMENTS )
-    # else
-    #   wget $playlist_url --output-document=pls.file --no-verbose
-    #   LIST=$(grep $PARSE_SEGMENTS pls.file)
-    #   rm pls.file
-    # fi
-
-    # echo "$LIST"
-
     for f in $LIST;
     do
         if [ $USE_FULL_PATH -eq 1 ]; then
@@ -294,11 +282,10 @@ segments_download() {
         DESTINATION_FOLDER=${FILE_DEST[${i}]}
 
         if test -f "$FILE_HEADERS"; then
-          echo "Downloading file to "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}""
+          # echo "Downloading file to "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}""
           # Equivalent curl command with wget-like features
           local cmd="curl -L -s -S ${curl_headers} --retry 5 --retry-delay 1 --connect-timeout 15 --max-time 20 --create-dirs -o "${DESTINATION_FOLDER}/${DOWNLOADED_FILE}" '${FILE_LIST[${i}]}'"
           eval "$cmd"
-
         else
           # This will retry refused connections and similar fatal errors (--retry-connrefused), 
           # it will wait 1 second before next retry (--waitretry), it will wait a maximum of

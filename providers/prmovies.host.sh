@@ -58,24 +58,11 @@ prmovies_get_main_playlist_in_iframe() {
     sed -n 's/.*sources: \[{file:"\([^"]*\)".*/\1/p'
 }
 
-# Get playlist link from iframe.
-# prmovies_get_main_playlist_in_iframe() {
-#     echo $1 |
-#     sed  's/https://' | sed 's/\/\//https:\/\//' | 
-#     wget -O- -i- --no-verbose --quiet | 
-#     grep -E -o 'file:"(.*)m3u8' | 
-#     sed -n 's/file:"//p'
-# } 
-
 # Return first link from m3u8 file with the lowest quality.
 prmovies_get_quality_playlist() {
     local url="$1"
     local cmd="curl ${CURL_HEADERS} '${url}'"
-    # eval "$cmd" | hxnormalize -x | sed -n '/https:/ {p;q}'
     eval "$cmd" | sed -n '/https:/ {p;q}'
-
-    # curl "$CURL_HEADERS" "$1" |
-    # sed -n '/https:/ {p;q}'
 } 
 
 # Create filename from playlist url.
@@ -146,11 +133,8 @@ init_segments_lists() {
     [ -d $OUTPUT ] || mkdir -p $OUTPUT
 
     debug_log "Filename: $FILENAME"
-    # change the segments
+    # Change the segments prefix.
     PARSE_SEGMENTS="seg-"
-    
-    
-    # exit
         
     if [ "$DRY_RUN" == "0" ] 
     then
