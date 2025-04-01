@@ -25,18 +25,28 @@ uaserial_get_service_iframe_url() {
 
 uaserial_get_main_playlist_in_iframe() {
     echo $1 |
-    # sed  's/https://' | sed 's/\/\//https:\/\//' | 
     wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    grep -E -o 'file: "(.*)m3u8' | 
-    sed -n 's/file: "//p'
+    grep -E -o 'file:"(.*)m3u8' | 
+    sed -n 's/file:"//p'
 }
 
-# Example of url "https://calypso.tortuga.wtf/hls/serials/pokemon.s01e01.ntn.dvo_37789/hls/index.m3u8" |
+# https://ashdi.vip/video26/1/new/somename_s01ep01_163460/hls/480/BKeMlHWLlPtdnwbhDos=/index.m3u8
 uaserial_get_filename_from_url() {
-    echo $1 |
-    sed 's/\/hls\/index.*//' |  # remove text before hls
-    sed 's#.*/##' # leave only last word
+    local playlist_url=$1
+    if [ `expr "$playlist_url" : ".*==.*"` -gt 0 ];
+    then
+        echo $playlist_url | sed 's/\/hls\/.*//'  | sed 's#.*/##'
+    else
+        echo $playlist_url | sed 's/\/hls.*//' | sed 's#.*/##'
+    fi
 }
+
+# Get quality playlist from main playlist.
+uaserial_com_get_quality_playlist() {
+    echo $1 |
+    wget -O- -i- --no-verbose --quiet | 
+    grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8"
+} 
 
 # Steps to get playlist with segments.
 # 1. download main page
@@ -69,21 +79,27 @@ init_segments_lists() {
 
     for iframe in "${IFRAMES_LIST[@]}";
     do
-        # echo "IFRAME = $iframe"
+        echo "IFRAME = $iframe"
         SERVICE_IFRAME=($(uaserial_get_service_iframe_url https://uaserial.com$iframe))
-        # echo "SERVICE IFRAME = $SERVICE_IFRAME"
-        PLAYLIST=$(uaserial_get_main_playlist_in_iframe $SERVICE_IFRAME)
-        # echo "playlist main = $PLAYLIST"
-        MOVIENAME=$(uaserial_get_filename_from_url $PLAYLIST)
+        echo "SERVICE IFRAME = $SERVICE_IFRAME"
+        PLAYLIST_MAIN=$(uaserial_get_main_playlist_in_iframe $SERVICE_IFRAME)
+        echo "playlist main = $PLAYLIST_MAIN"
+        PLAYLIST_QUALITY=$(uaserial_com_get_quality_playlist $PLAYLIST_MAIN)
+        debug_log "Playlist quality = $PLAYLIST_QUALITY"
+        if [ -z "$PLAYLIST_QUALITY" ]; then
+            echo "Playlist for selected quality not found. Try another."
+            exit
+        fi
+        MOVIENAME=$(uaserial_get_filename_from_url $PLAYLIST_MAIN)
         FILENAME="$MOVIENAME.mp4"
         debug_log "Filename to save $FILENAME";
         
         if [ "$DRY_RUN" == "0" ] 
         then
             if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
-                ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
+                ffmpeg -i $PLAYLIST_QUALITY -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
             else
-                segments_create $PLAYLIST $MOVIENAME
+                segments_create $PLAYLIST_QUALITY $MOVIENAME 1
             fi
         fi
         echo "----------------------------------------------"

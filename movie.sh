@@ -183,11 +183,13 @@ segments_create() {
     USE_FULL_PATH=0
 
     # todo: error here if param is string
-    if [ $3 -eq 1 ]; then
-        USE_FULL_PATH=1
+    if [ -n "$3" ]; then
+      if [ $3 -eq 1 ]; then
+          USE_FULL_PATH=1
+      fi
     fi
 
-    echo "Creating segments fot $playlist_url"
+    echo "Creating segments for $playlist_url"
     
     FILE_MOVIE_VARS="$VARS_DIR/$MOVIE_NAME.vars"
     FILE_FFMPEG_LIST="$VARS_DIR/$MOVIE_NAME.ffmpeg"

@@ -6,7 +6,8 @@ class Playerjs {
    }
 }
 
-let season_name = process.argv[2]; 
+let season_name = process.argv[2];
+let ref_domain = "https://uaserials.pro/";
 
 if (season_name == undefined) {
   return;
