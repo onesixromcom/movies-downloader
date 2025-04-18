@@ -7,8 +7,9 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
+VERSION="0.5"
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.pro" "uakino.me" "uaserial.com" "prmovies.host")
+SUPPORTER_PROVIDERS=("uaserials.com" "uakino.me" "uaserial.top" "prmovies.host")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -17,7 +18,8 @@ SEASON=0
 # Set Audio track.
 SOUND=0
 # Playlist number (uakino.club).
-PLAYLIST_NUM="0_0"
+#PLAYLIST_NUM="0_0"
+PLAYLIST_NUM=0
 # Will create all files needed for queue download or check if movie is available for download in case of using ffmpeg downloader.
 DRY_RUN="0"
 # Set folder to download movie.
@@ -106,7 +108,8 @@ for i in "${args[@]}"; do
       TOTAL=$(($TOTAL + 0)) # convert to int
       ;;
     --playlist=*)
-      PLAYLIST_NUM="0_${i#*=}"
+      # PLAYLIST_NUM="0_${i#*=}"
+      PLAYLIST_NUM=${i#*=}
       ;;
     --debug)
       DEBUG="1"
@@ -147,6 +150,16 @@ check_supported_provider() {
 get_host() {
     echo $1 |
     awk -F[/:] '{print $4}'
+}
+
+# Extract domain from URL
+extract_domain() {
+    local url="$1"
+    # Remove protocol (http://, https://, etc.)
+    domain=$(echo "$url" | sed -E 's#^(https?://)?([^/]+).*#\2#')
+    # Remove port number if present
+    domain=$(echo "$domain" | sed -E 's#(.+):[0-9]+$#\1#')
+    echo "$domain"
 }
 
 # Show debug info.
@@ -369,7 +382,7 @@ curl_request() {
 }
 
 #================== START ==================
-echo "$PROGRAM_NAME is starting..."
+echo "$PROGRAM_NAME v.$VERSION is starting..."
 PROVIDER_NAME=$(get_host $URL)
 check_supported_provider
 
@@ -380,6 +393,7 @@ segments_download
 
 echo "url $URL"
 echo "quality $QUALITY"
+echo "playlist $PLAYLIST_NUM"
 echo "season $SEASON"
 echo "sound $SOUND"
 echo "skip $SKIP"

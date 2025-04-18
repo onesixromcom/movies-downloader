@@ -1,0 +1,7 @@
+CHANGELOG
+
+VERSION 0.5
+- uaserials.top support for boogiemovie.
+- playlist param support for boogiemovie.
+- uakino.me is not working.
+- boogiemovie works with --use-ffmpeg param only.
