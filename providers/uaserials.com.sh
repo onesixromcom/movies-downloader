@@ -5,6 +5,18 @@
 # 2. extract json data from the page
 # 3. get all playlist files with required quality 
 
+# Get encoded tag1 from iframe
+
+uaserials_com_get_player_tag1() {
+    echo $1 |
+    wget -O- -i- --no-verbose --quiet | 
+    hxnormalize -x |
+    hxselect -i "player-control" |
+    grep -o 'data-tag1="[^"]*"' | 
+    sed 's/data-tag1="\(.*\)"/\1/' |
+    sed 's/&#34;/"/g'
+}
+
 # Get iframe url.
 uaserials_get_iframe_url() {
     echo $1 |
@@ -30,14 +42,14 @@ uaserials_get_main_playlists() {
 # Get playlist link from iframe.
 uaserials_get_main_playlist_in_iframe() {
     echo $1 |
-    sed  's/https://' | sed 's/\/\//https:\/\//' | 
+    # sed  's/https://' | sed 's/\/\//https:\/\//' | 
     wget -O- -i- --no-verbose --quiet | 
-    grep -E -o 'file:"(.*)m3u8' | 
-    sed -n 's/file:"//p'
+    grep -E -o 'file: "(.*)m3u8' | 
+    sed -n 's/file: "//p'
 } 
 
 # Get quality playlist from main playlist.
-uaserials_get_quality_playlist() {
+uaserials_com_get_quality_playlist() {
     echo $1 |
     wget -O- -i- --no-verbose --quiet | 
     grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8"
@@ -52,17 +64,26 @@ uaserials_get_filename_from_url() {
 }
 
 init_segments_lists() {
-    # Get iframes url.
-    IFRAME_URL=$(uaserials_get_iframe_url $URL)
-
-    if [ -z "$IFRAME_URL" ]; then
-        echo "Iframe url was not found."
-        exit
+    # Try the flow with encoded player first.
+    local TAG1_ENCODED=$(uaserials_com_get_player_tag1 $URL)
+    if [ ! -z $TAG1_ENCODED ]; then
+        PLAYER_IFRAMES=$(node ./scripts/uaserials_com_crypto.js $TAG1_ENCODED)
     fi
 
-    debug_log "Iframe URL: $IFRAME_URL"
+    if [ -z $PLAYER_IFRAMES ]; then
+        # Get iframes url.
+        echo "Getting iframe urls from the page."
+        IFRAME_URL=$(uaserials_get_iframe_url $URL)
 
-    PLAYER_IFRAMES=$(uaserials_get_main_playlists $IFRAME_URL)
+        if [ -z "$IFRAME_URL" ]; then
+            echo "Iframe url was not found."
+            exit
+        fi
+
+        echo "Iframe URL: $IFRAME_URL"
+
+        PLAYER_IFRAMES=$(uaserials_get_main_playlists $IFRAME_URL)
+    fi
 
     # PLAYER_IFRAMES=$(node ./scripts/crypto.js $IFRAME_URL $SEASON $SOUND)
 
@@ -97,11 +118,14 @@ init_segments_lists() {
 
     [ -d $OUTPUT ] || mkdir -p $OUTPUT
 
-    for PLAYLIST_MAIN in "${PLAYER_IFRAMES[@]}";
+    for SERVICE_IFRAME in "${PLAYER_IFRAMES[@]}";
     do
-        #VIDEO_URI=$(uaserials_get_main_playlist_in_iframe $iframe)
-        #echo "playlist main = $VIDEO_URI"
-        PLAYLIST_QUALITY=$(uaserials_get_quality_playlist $PLAYLIST_MAIN)
+        DOMAIN=$(extract_domain $SERVICE_IFRAME)
+
+        local PLAYLIST_MAIN=$(uaserials_get_main_playlist_in_iframe $SERVICE_IFRAME)
+ 
+        echo "playlist main = $PLAYLIST_MAIN"
+        PLAYLIST_QUALITY=$(uaserials_com_get_quality_playlist $PLAYLIST_MAIN)
         debug_log "Playlist quality = $PLAYLIST_QUALITY"
         if [ -z "$PLAYLIST_QUALITY" ]; then
             echo "Playlist for selected quality not found. Try another."

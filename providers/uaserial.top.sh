@@ -9,11 +9,21 @@ DOMAIN=""
 uaserial_get_embed_list() {
     echo $1 |
     wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    # cat ./tmp/season-7.html |
     hxnormalize -x | # normalize html
     hxselect -i "select[id=\"select-series\"]" | # select videos only from first player
     sed 's/value/href/g' | #replacements to make hxwls work
     sed 's/<option /<a /g' |  #replacements to make hxwls work
+    hxwls
+}
+
+uaserial_get_single_src() {
+    echo $1 |
+    wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    # cat ./tmp/movie-blackberry.html |
+    hxnormalize -x | # normalize html
+    hxselect -i "iframe[id=\"embed\"]" | # select videos only from first player
+    sed 's/src/href/g' | #replacements to make hxwls work
+    sed 's/iframe/a/g' | #replacements to make hxwls work
     hxwls
 }
 
@@ -110,12 +120,25 @@ init_segments_lists() {
     IFRAMES_LIST=($(uaserial_get_embed_list $URL))
 
     TOTAL_ITEMS=(${#IFRAMES_LIST[@]})
-    debug_log "total before skip: $TOTAL_ITEMS"
+
+    # If there are no series selector try to get iframe src
+    if [ $TOTAL_ITEMS -eq 0 ]; then
+        IFRAMES_LIST=($(uaserial_get_single_src $URL))
+    fi
+
+    TOTAL_ITEMS=(${#IFRAMES_LIST[@]})
+
+    if [ $TOTAL_ITEMS -eq 0 ]; then
+        echo "No embed links were found."
+        exit
+    fi
 
     for iframe in "${IFRAMES_LIST[@]}";
     do
         echo $iframe
     done
+
+    debug_log "total before skip: $TOTAL_ITEMS"
 
     # Removing first skipped videos.
     if [ $SKIP -gt 0 ]; then
