@@ -7,7 +7,7 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.5"
+VERSION="0.6"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.me" "uaserial.top" "prmovies.host")
 PROVIDER_NAME=""
@@ -17,8 +17,7 @@ QUALITY="480"
 SEASON=0
 # Set Audio track.
 SOUND=0
-# Playlist number (uakino.club).
-#PLAYLIST_NUM="0_0"
+# Playlist number (for uakino.me).
 PLAYLIST_NUM=0
 # Will create all files needed for queue download or check if movie is available for download in case of using ffmpeg downloader.
 DRY_RUN="0"
@@ -73,6 +72,7 @@ if [ -z "$URL" ]; then
 \t--skip=N\tSkip first N videos from season.
 \t--total=N\tTotal videos to be downloaded if episodes are available.
 \t--playlist=1\tUseful for uakino.club when there are more than 1 season playlists.
+\t--clear\tClear previous downloads.
 '
     echo -e "Params for $CGreen uaserials.pro: $CN";
     printf '\t--season="1 сезон"\tSpecific season for show in text.'
@@ -117,7 +117,7 @@ for i in "${args[@]}"; do
     --help)
       exit
       ;;
-    --clean)
+    --clear)
       echo "Clear all variables and tmp segments."
       rm -rf $VARS_DIR/*
     #   rm -rf $DIR_TMP/*
