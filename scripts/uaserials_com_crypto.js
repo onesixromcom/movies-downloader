@@ -14,7 +14,7 @@ CryptoJSAesDecrypt = function (passphrase, encrypted_json_string){
 	let decrypted = CryptoJS.AES.decrypt(encrypted, key, { iv: iv});
 
 	let result_string = decrypted.toString(CryptoJS.enc.Utf8);
-    return JSON.parse(result_string.replace(/(\r\n|\n|\r)/gm, "").replace(/\\/gm, ""));
+	return JSON.parse(result_string.replace(/(\r\n|\n|\r)/gm, "").replace(/\\/gm, ""));
 }
 
 var encrypted_json_string = process.argv[2];
