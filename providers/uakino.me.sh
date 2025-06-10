@@ -5,7 +5,8 @@ DIR_TMP="$DIR_TMP/uakino"
 uakino_get_single_iframe_video_url() {
     cat "$DIR_TMP-main.html" |
     hxselect -i "div.box.full-text.visible iframe" |
-    hxwls
+    hxwls |
+    sed -n 's/geoblock=ua//p'
 } 
 
 uakino_get_list_id() {
@@ -223,7 +224,7 @@ init_segments_lists() {
         fi
         MOVIENAME=$(uakino_get_filename_from_url $VIDEO_URI)
         FILENAME="$MOVIENAME.mp4"
-        #echo "filname = $FILENAME"
+        echo "filname = $FILENAME"
         
         if [ "$DRY_RUN" == "0" ] 
         then
