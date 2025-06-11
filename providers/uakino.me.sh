@@ -6,7 +6,7 @@ uakino_get_single_iframe_video_url() {
     cat "$DIR_TMP-main.html" |
     hxselect -i "div.box.full-text.visible iframe" |
     hxwls |
-    sed -n 's/geoblock=ua//p'
+    sed 's/geoblock=ua//p'
 } 
 
 uakino_get_list_id() {
