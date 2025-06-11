@@ -57,23 +57,16 @@ uakino_get_json_list() {
         hxnormalize -x | # normalize html
         hxselect -i "li[data-file]"
     )
-    echo $ELEMENTS
+    # echo $ELEMENTS
 
-    if [ -z $ELEMENTS ]; then
+    if [ -z "$ELEMENTS" ]; then
         echo "No voices players found."
         return 1
     fi
 
-    # hxselect -i $SELECTOR | # select videos only from requested playlist
-    LISTS=$(
-        echo $ELEMENTS | sed 's/data-file/href/g' | sed 's/<li /<a /g' | hxwls
-    )
+    readarray -t LISTS < <(echo "$ELEMENTS" | grep -o 'data-file="[^"]*"' | sed 's/data-file="//g' | sed 's/"//g')
 
-    TITLES=$(
-        echo $ELEMENTS | sed 's/data-voice/href/g' | sed 's/<li /<a /g' | hxwls
-    )
-    TITLES=($TITLES)
-    LISTS=($LISTS)
+    readarray -t TITLES < <(echo "$ELEMENTS" | grep -o 'data-voice="[^"]*"' | sed 's/data-voice="//g' | sed 's/"//g')
 
     # Build the pattern (1|2|3|4|5)
     pattern=""
