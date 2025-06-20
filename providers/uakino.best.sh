@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Since website is using Cloudflare protection we can't use
+# direct curl requests to the ajaxed urls.
+# Curl Impersonate porject should be used.
+# https://github.com/lwthiker/curl-impersonate
+# Install it to some folder and provide the path in CURLIMP variable
+
+CURL_ORIG="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl-impersonate-chrome"
+CURL_CHROME="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl_chrome116"
 DIR_TMP="$DIR_TMP/uakino"
 
 uakino_get_single_iframe_video_url() {
@@ -17,8 +25,7 @@ uakino_get_list_id() {
 }
 
 uakino_download_movie_page() {
-    echo $1 |
-    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    $CURL_CHROME "$1" |
     hxnormalize -x > "$DIR_TMP-main.html"
 }
 
@@ -34,23 +41,28 @@ uakino_get_timestamp_locally() {
 }
 
 uakino_get_json_list() {
-    # TODO Get PHPSESSID and cookies. curl is not working.
-
-    curl "https://uakino.me/engine/ajax/playlists.php?news_id=$1&xfield=playlist&time=$2" \
-        -H 'accept: application/json, text/javascript, */*; q=0.01' \
-        -H 'accept-language: en-US,en;q=0.9' \
-        -H 'cache-control: no-cache' \
-        -H 'pragma: no-cache' \
-        -H 'priority: u=1, i' \
-        -H "referer: $URL" \
-        -H 'sec-ch-ua: "Chromium";v="135", "Not-A.Brand";v="8"' \
-        -H 'sec-ch-ua-mobile: ?0' \
-        -H 'sec-ch-ua-platform: "Linux"' \
-        -H 'sec-fetch-dest: empty' \
-        -H 'sec-fetch-mode: cors' \
-        -H 'sec-fetch-site: same-origin' \
-        -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36' \
-        -H 'x-requested-with: XMLHttpRequest' > "$DIR_TMP-playlist.php"
+    echo "Getting the playlist for news $1 with timestamp $2"
+    $CURL_ORIG \
+    --ciphers TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,ECDHE-ECDSA-AES128-GCM-SHA256,ECDHE-RSA-AES128-GCM-SHA256,ECDHE-ECDSA-AES256-GCM-SHA384,ECDHE-RSA-AES256-GCM-SHA384,ECDHE-ECDSA-CHACHA20-POLY1305,ECDHE-RSA-CHACHA20-POLY1305,ECDHE-RSA-AES128-SHA,ECDHE-RSA-AES256-SHA,AES128-GCM-SHA256,AES256-GCM-SHA384,AES128-SHA,AES256-SHA \
+    -H 'sec-ch-ua: "Chromium";v="104", " Not A;Brand";v="99", "Google Chrome";v="104"' \
+    -H 'sec-ch-ua-mobile: ?0' \
+    -H 'sec-ch-ua-platform: "Windows"' \
+    -H 'Upgrade-Insecure-Requests: 1' \
+    -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36' \
+    -H 'Accept: application/json, text/javascript, */*; q=0.01' \
+    -H 'Sec-Fetch-Site: none' \
+    -H 'Sec-Fetch-Mode: cors' \
+    -H 'Sec-Fetch-User: ?1' \
+    -H "referer: $URL" \
+    -H 'Sec-Fetch-Dest: empty' \
+    -H 'Accept-Encoding: gzip, deflate, br' \
+    -H 'Accept-Language: en-US,en;q=0.9' \
+    -H 'x-requested-with: XMLHttpRequest' \
+    --http2 --compressed \
+    --tlsv1.2 --no-npn --alps \
+    --cert-compression brotli \
+    "https://uakino.best/engine/ajax/playlists.php?news_id=$1&xfield=playlist&time=$2" \
+    > "$DIR_TMP-playlist.php" 
 
     ELEMENTS=$(cat "$DIR_TMP-playlist.php" |
         jq -r .response | # get value by response key
@@ -100,7 +112,7 @@ uakino_get_json_list() {
 }
 
 uakino_get_json_list2() {
-    echo "https://uakino.me/engine/ajax/playlists.php?news_id=$1&xfield=playlist" |
+    echo "https://uakino.best/engine/ajax/playlists.php?news_id=$1&xfield=playlist" |
     wget -O- -i- --no-verbose --quiet | 
     jq -r .response | # get value by response key
     hxnormalize -x | # normalize html
@@ -156,13 +168,15 @@ init_segments_lists() {
 
     IFRAMES_LIST=""
     # Get the lists with propmt.
-    uakino_get_json_list $PLAYLIST_ID $TIMESTAMP
-    debug_log $IFRAMES_LIST
-
-    if [ -z "$IFRAMES_LIST" ]; then
-        echo "No iframes found for series download. Trying another approach."
-        IFRAMES_LIST=($(uakino_get_json_list2 $PLAYLIST_ID))
+    if [ ! -z "$PLAYLIST_ID"]; then
+        uakino_get_json_list $PLAYLIST_ID $TIMESTAMP
         debug_log $IFRAMES_LIST
+
+        if [ -z "$IFRAMES_LIST" ]; then
+            echo "No iframes found for series download. Trying another approach."
+            IFRAMES_LIST=($(uakino_get_json_list2 $PLAYLIST_ID))
+            debug_log $IFRAMES_LIST
+        fi
     fi
 
     # Try to load single video approach.

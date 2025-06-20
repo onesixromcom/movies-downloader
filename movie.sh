@@ -9,7 +9,7 @@ DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
 VERSION="0.6"
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.com" "uakino.me" "uaserial.top" "prmovies.host")
+SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.host")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -17,7 +17,7 @@ QUALITY="480"
 SEASON=0
 # Set Audio track.
 SOUND=0
-# Playlist number (for uakino.me).
+# Playlist number (for uakino.best).
 PLAYLIST_NUM=0
 # Will create all files needed for queue download or check if movie is available for download in case of using ffmpeg downloader.
 DRY_RUN="0"
@@ -216,7 +216,7 @@ segments_create() {
     fi
     
     # This solution is working when only segments filenames are present in playlist.
-    # Since new updates from uakino.me it's not working.
+    # Since new updates from uakino.best it's not working.
     VIDEO_FOLDER=$(get_remote_video_folder $playlist_url)
 
     OUTPUT_MOVIE_SEGMENTS=$OUTPUT_SEGMENTS
