@@ -64,21 +64,31 @@ uakino_get_json_list() {
     "https://uakino.best/engine/ajax/playlists.php?news_id=$1&xfield=playlist&time=$2" \
     > "$DIR_TMP-playlist.php" 
 
-    ELEMENTS=$(cat "$DIR_TMP-playlist.php" |
-        jq -r .response | # get value by response key
-        hxnormalize -x | # normalize html
-        hxselect -i "li[data-file]"
-    )
-    # echo $ELEMENTS
+    # Flag if we use series flow.
+    SERIES_FLOW="1"
 
-    if [ -z "$ELEMENTS" ]; then
+    # Get players voices for series.
+    PLAYLISTS=$(cat "$DIR_TMP-playlist.php" |
+        jq -r .response |
+        hxnormalize -x |
+        hxselect -i "div.playlists-lists div.playlists-items ul")
+    
+    # There are no series if it's empty. Try voices flow.
+    if [ -z "$PLAYLISTS" ]; then
+        PLAYLISTS=$(cat "$DIR_TMP-playlist.php" |
+            jq -r .response | # get value by response key
+            hxnormalize -x | # normalize html
+            hxselect -i "li[data-file]"
+        )
+        SERIES_FLOW=""
+    fi
+
+    readarray -t TITLES < <(echo "$PLAYLISTS" | hxselect -i "li[data-id]" | sed 's/<li[^>]*>\([^<]*\)<\/li>/\1\n/g' | grep -v '^$')
+    
+    if [ -z "$TITLES" ]; then
         echo "No voices players found."
         return 1
     fi
-
-    readarray -t LISTS < <(echo "$ELEMENTS" | grep -o 'data-file="[^"]*"' | sed 's/data-file="//g' | sed 's/"//g')
-
-    readarray -t TITLES < <(echo "$ELEMENTS" | grep -o 'data-voice="[^"]*"' | sed 's/data-voice="//g' | sed 's/"//g')
 
     # Build the pattern (1|2|3|4|5)
     pattern=""
@@ -108,7 +118,26 @@ uakino_get_json_list() {
         esac
     done
 
-    IFRAMES_LIST="${LISTS[$((choice-1))]}"
+    if [ -z $SERIES_FLOW ]; then
+        readarray -t LISTS < <(echo "$PLAYLISTS" | grep -o 'data-file="[^"]*"' | sed 's/data-file="//g' | sed 's/"//g')
+        IFRAMES_LIST="${LISTS[$((choice-1))]}"
+    else
+        ELEMENTS=$(cat "$DIR_TMP-playlist.php" |
+            jq -r .response | # get value by response key
+            hxnormalize -x | # normalize html
+            hxselect -i "div.playlists-videos li[data-id='0_$((choice-1))']"
+        )
+
+        if [ -z "$ELEMENTS" ]; then
+            echo "Incorrect choice."
+            return 1
+        fi
+
+        readarray -t IFRAMES_LIST < <(echo "$ELEMENTS" | grep -o 'data-file="[^"]*"' | sed 's/data-file="//g' | sed 's/"//g')
+    fi
+
+    # Display selected values
+    # printf '%s\n' "${IFRAMES_LIST[@]}"
 }
 
 uakino_get_json_list2() {
@@ -168,7 +197,7 @@ init_segments_lists() {
 
     IFRAMES_LIST=""
     # Get the lists with propmt.
-    if [ ! -z "$PLAYLIST_ID"]; then
+    if [ ! -z "$PLAYLIST_ID" ]; then
         uakino_get_json_list $PLAYLIST_ID $TIMESTAMP
         debug_log $IFRAMES_LIST
 
