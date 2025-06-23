@@ -189,11 +189,13 @@ get_remote_video_folder() {
 # param 1 - m3u8 playlist url
 # param 2 - movie name
 # param 3 - 0/1 to use full video path from playlist
+# param 4 - subtitles. [NAME]LINK,[NAME]LINK
 segments_create() {
     local playlist_url=$1
     [ -d $OUTPUT_SEGMENTS ] || mkdir -p $OUTPUT_SEGMENTS
     MOVIE_NAME="$2"
     USE_FULL_PATH=0
+    MOVIE_SUBTITLES="$4"
 
     # todo: error here if param is string
     if [ -n "$3" ]; then
@@ -229,6 +231,7 @@ segments_create() {
     echo "MOVIE_FINAL_FILE=$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
     echo "MOVIE_FFMPEG=$FILE_FFMPEG_LIST" >> $FILE_MOVIE_VARS
     echo "MOVIE_OUTPUT=$OUTPUT$MOVIE_NAME.mp4" >> $FILE_MOVIE_VARS
+    echo "MOVIE_SUBTITLES=$MOVIE_SUBTITLES" >> $FILE_MOVIE_VARS
     
     # Download playlist and extract only segments links.
     # Use curl of headers are present.
@@ -340,7 +343,36 @@ segments_download() {
         # Load variables per movie
         . "$movie_vars"
 
-        ffmpeg -f concat -safe 0 -i $MOVIE_FFMPEG -c copy -bsf:a aac_adtstoasc $MOVIE_OUTPUT
+        FFMPEG_INPUT="-i $MOVIE_FFMPEG"
+        FFMPEG_MAP=" -map 0 "
+        FFMPEG_SUBTITLES="-c:s mov_text "
+
+        # Check if subtitles should be added.
+        if [ ! -z $MOVIE_SUBTITLES ]; then
+          # Extract names
+          readarray -t names < <(echo "$MOVIE_SUBTITLES" | sed 's/",$//' | grep -oP '\[\K[^\]]*' | sed 's/\]//')
+
+          # Extract links  
+          readarray -t links < <(echo "$MOVIE_SUBTITLES" | sed 's/",$//' | grep -oP '\][^,\[]*' | sed 's/^]//')
+
+          # Download subtitles and convert them.
+          for i in "${!links[@]}"; do
+              SUBTITLE_LINK="${links[i]}"
+              SUBTITLE_NAME=$(basename $SUBTITLE_LINK)
+              echo "Download subtitle: $SUBTITLE_NAME"
+              wget $SUBTITLE_LINK --output-document=$MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME --no-verbose
+              # If subtitle was downloaded convert it to srt
+              # and add to the processing.
+              if [ -f $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME ]; then
+                ffmpeg -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME -c:s subrip $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
+                FFMPEG_SUBTITLES="$FFMPEG_SUBTITLES -metadata:s:s:$i language=${names[i]} "
+                FFMPEG_INPUT="$FFMPEG_INPUT -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt "
+                FFMPEG_MAP="$FFMPEG_MAP -map $((i+1))"
+              fi
+          done
+        fi
+
+        ffmpeg -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP -c copy $FFMPEG_SUBTITLES -bsf:a aac_adtstoasc $MOVIE_OUTPUT
         rm -rf $MOVIE_FFMPEG
         rm -rf $MOVIE_FOLDER_SEGMENTS
         rm -rf $movie_vars

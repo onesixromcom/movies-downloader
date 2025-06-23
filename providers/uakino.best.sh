@@ -258,6 +258,8 @@ init_segments_lists() {
             echo "Playlist for selected quality not found. Try another."
             exit
         fi
+        # Get subtitles.
+        SUBTITLES=$(uakino_get_subtitles_in_iframe)
         MOVIENAME=$(uakino_get_filename_from_url $VIDEO_URI)
         FILENAME="$MOVIENAME.mp4"
         echo "filname = $FILENAME"
@@ -267,7 +269,7 @@ init_segments_lists() {
             if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
                 ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
             else
-                segments_create $PLAYLIST $MOVIENAME 1
+                segments_create $PLAYLIST $MOVIENAME 1 $SUBTITLES
             fi
         fi
         echo "----------------------------------------------"
