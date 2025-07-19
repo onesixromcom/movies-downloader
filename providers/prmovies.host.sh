@@ -136,7 +136,7 @@ init_segments_lists() {
     # Change the segments prefix.
     PARSE_SEGMENTS="seg-"
         
-    if [ "$DRY_RUN" == "0" ] 
+    if [ "$DRY_RUN" == "0" ];
     then
         if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
             # ffmpeg will not work here because of request data.

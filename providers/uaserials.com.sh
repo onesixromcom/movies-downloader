@@ -5,23 +5,20 @@
 # 2. extract json data from the page
 # 3. get all playlist files with required quality 
 
-# Get encoded tag1 from iframe
+DIR_TMP="$DIR_TMP/uaserials"
 
+# Get encoded tag1 from iframe
 uaserials_com_get_player_tag1() {
-    echo $1 |
-    wget -O- -i- --no-verbose --quiet | 
-    hxnormalize -x |
+    cat "$DIR_TMP-main.html" |
     hxselect -i "player-control" |
     grep -o 'data-tag1="[^"]*"' | 
     sed 's/data-tag1="\(.*\)"/\1/' |
-    sed 's/&#34;/"/g'
+    sed 's/&#34;/"/g' # replace double quotes symbol after normalization
 }
 
 # Get iframe url.
 uaserials_get_iframe_url() {
-    echo $1 |
-    wget -O- -i- --no-verbose --quiet | 
-    hxnormalize -x |
+    cat "$DIR_TMP-main.html" |
     sed -n "s/.*data-src=\"\([^']\+\)embed\(.*\)\"/\1embed\2/p"
 }
 
@@ -64,16 +61,24 @@ uaserials_get_filename_from_url() {
 }
 
 init_segments_lists() {
+    # Download the page.
+    echo $URL |
+    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    hxnormalize -x > "$DIR_TMP-main.html"
+
+    exit;
+
     # Try the flow with encoded player first.
-    local TAG1_ENCODED=$(uaserials_com_get_player_tag1 $URL)
+    local TAG1_ENCODED=$(uaserials_com_get_player_tag1)
     if [ ! -z $TAG1_ENCODED ]; then
         PLAYER_IFRAMES=$(node ./scripts/uaserials_com_crypto.js $TAG1_ENCODED)
+        echo "+ Player Iframe was found via tag1"
     fi
 
     if [ -z $PLAYER_IFRAMES ]; then
         # Get iframes url.
         echo "Getting iframe urls from the page."
-        IFRAME_URL=$(uaserials_get_iframe_url $URL)
+        IFRAME_URL=$(uaserials_get_iframe_url)
 
         if [ -z "$IFRAME_URL" ]; then
             echo "Iframe url was not found."
@@ -136,7 +141,7 @@ init_segments_lists() {
         FILENAME="$MOVIENAME.mp4"
         debug_log "Filename: $FILENAME"
         
-        if [ "$DRY_RUN" == "0" ] 
+        if [ "$DRY_RUN" == "0" ];
         then
             if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
                 ffmpeg -i $PLAYLIST_QUALITY -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y

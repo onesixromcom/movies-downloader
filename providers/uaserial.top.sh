@@ -1,15 +1,16 @@
 #!/bin/bash
 
+# This provider has a separate iframe with voices selector for every episode.
 # Script is working only with --use-ffmpeg flag since playlist has no absolute urls to the videos.
 
 SUPPORTED_SERVICES=("ashdi.vip","boogiemovie.online")
+DIR_TMP="$DIR_TMP/uaserial"
 
 DOMAIN=""
+
 # Get the list of embed urls.
 uaserial_get_embed_list() {
-    echo $1 |
-    wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    hxnormalize -x | # normalize html
+    cat "$DIR_TMP-main.html" |
     hxselect -i "select[id=\"select-series\"]" | # select videos only from first player
     sed 's/value/href/g' | #replacements to make hxwls work
     sed 's/<option /<a /g' |  #replacements to make hxwls work
@@ -17,10 +18,7 @@ uaserial_get_embed_list() {
 }
 
 uaserial_get_single_src() {
-    echo $1 |
-    wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    # cat ./tmp/movie-blackberry.html |
-    hxnormalize -x | # normalize html
+    cat "$DIR_TMP-main.html" |
     hxselect -i "iframe[id=\"embed\"]" | # select videos only from first player
     sed 's/src/href/g' | #replacements to make hxwls work
     sed 's/iframe/a/g' | #replacements to make hxwls work
@@ -31,13 +29,58 @@ uaserial_get_single_src() {
 # Each link is the different player/voice
 uaserial_get_service_iframe_url() {
     echo $1 |
-    # cat "./tmp/episode-1.html" | 
-    wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    hxnormalize -x | 
-    hxselect -i "select[class=\"voices__select\"]" |
-    sed 's/value/href/g' |
-    sed 's/<option /<a /g' |
-    hxwls
+    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    hxnormalize -x | tr -d '\n' | tr -d '\r' |
+    sed -e $'s/   / /g' > "$DIR_TMP-iframe.html"
+
+    PLAYLISTS=$(
+        cat "$DIR_TMP-iframe.html" |
+        hxselect -i "select[class=\"voices__select\"]"
+    )
+
+    readarray -t SERVICE_IFRAMES < <(echo "$PLAYLISTS" | grep -o 'value="[^"]*"' | sed 's/value="//g' | sed 's/"//g')
+    readarray -t TITLES < <(echo "$PLAYLISTS" | hxselect -i "option[data-type]" | sed 's/<option[^>]*>\([^<]*\)<\/option>/\1\n/g' | grep -v '^$')
+    
+    if [ -z "$TITLES" ]; then
+        echo "No voices players found."
+        return 1
+    fi
+
+    # Select playlist.
+    if [ ! -z $PLAYLIST_NUM ]; then
+        echo "Playlist already selected: ${TITLES[PLAYLIST_NUM]}"
+        return
+    fi
+
+    # Build the pattern (1|2|3|4|5)
+    pattern=""
+    for i in "${!TITLES[@]}"; do
+        if [ -z "$pattern" ]; then
+            pattern="$((i+1))"
+        else
+            pattern="$pattern|$((i+1))"
+        fi
+    done
+
+    echo "Choose an option (1-${#TITLES[@]}):"
+    for i in "${!TITLES[@]}"; do
+        echo "$((i+1)). ${TITLES[i]}"
+    done
+
+    while true; do
+        read -n 1 -s choice
+        case $choice in
+            [$pattern])
+                echo "You chose: ${TITLES[$((choice-1))]}"
+                break
+                ;;
+            *)
+                echo "Invalid choice. Please press 1-${#TITLES[@]}."
+                ;;
+        esac
+    done
+
+    PLAYLIST_NUM=$((choice-1))
 }
 
 uaserial_get_main_playlist_in_iframe() {
@@ -53,7 +96,6 @@ uaserial_get_main_playlist_in_iframe() {
     then
         echo $1 |
         wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-        # cat ./tmp/9829.html |
         hxnormalize -x |
         grep -E -o "manifest: '(.*)m3u8'," | 
         sed -n "s/manifest: '\(.*\)',/\1/p"
@@ -75,14 +117,22 @@ uaserial_com_get_quality_playlist() {
     if [ "$DOMAIN" == "boogiemovie.online" ] 
     then
         echo $1 |
-        wget -O- -i- --no-verbose --quiet | 
-        # cat "./tmp/master.m3u8" |
-        grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+        wget -O- -i- --no-verbose --quiet > "$DIR_TMP-playlists.m3u8"
+        local PLAYLIST=$(
+            cat "$DIR_TMP-playlists.m3u8" |
+            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+        )
+        # Could be empty because of non-standard quality. Using the lowest one.
+        if [ -z $PLAYLIST ]; then
+            QUALITY=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
+            PLAYLIST=$(cat "$DIR_TMP-playlists.m3u8" |
+            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+            )
+        fi
+
+        echo $PLAYLIST
     fi
-
-    echo ""
 } 
-
 
 uaserial_get_filename_from_url() {
     local playlist_url=$1
@@ -116,14 +166,19 @@ uaserial_get_filename_from_url() {
 # 4. find playslist link in iframe
 
 init_segments_lists() {
+    # Download the page.
+    echo $URL |
+    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    hxnormalize -x > "$DIR_TMP-main.html"
+
     # Get the list of embed urls.
-    IFRAMES_LIST=($(uaserial_get_embed_list $URL))
+    IFRAMES_LIST=($(uaserial_get_embed_list))
 
     TOTAL_ITEMS=(${#IFRAMES_LIST[@]})
 
     # If there are no series selector try to get iframe src
     if [ $TOTAL_ITEMS -eq 0 ]; then
-        IFRAMES_LIST=($(uaserial_get_single_src $URL))
+        IFRAMES_LIST=$(uaserial_get_single_src)
     fi
 
     TOTAL_ITEMS=(${#IFRAMES_LIST[@]})
@@ -132,11 +187,6 @@ init_segments_lists() {
         echo "No embed links were found."
         exit
     fi
-
-    for iframe in "${IFRAMES_LIST[@]}";
-    do
-        echo $iframe
-    done
 
     debug_log "total before skip: $TOTAL_ITEMS"
 
@@ -160,13 +210,16 @@ init_segments_lists() {
     do
         echo "IFRAME = $iframe"
         local IFRAME_URL="https://uaserial.top$iframe"
-        SERVICE_IFRAMES=($(uaserial_get_service_iframe_url $IFRAME_URL))
+        SERVICE_IFRAMES=""
+        uaserial_get_service_iframe_url $IFRAME_URL
+
         local SERVICE_IFRAME=${SERVICE_IFRAMES[$PLAYLIST_NUM]}
         echo "SERVICE IFRAME = ${SERVICE_IFRAMES[$PLAYLIST_NUM]}"
         DOMAIN=$(extract_domain $SERVICE_IFRAME)
+        # echo "Video domain: $DOMAIN"
         
         PLAYLIST_MAIN=$(uaserial_get_main_playlist_in_iframe $SERVICE_IFRAME)
-        echo "playlist main = $PLAYLIST_MAIN"
+        echo "Playlist main = $PLAYLIST_MAIN"
 
         PLAYLIST_QUALITY=$(uaserial_com_get_quality_playlist $PLAYLIST_MAIN)
         debug_log "Playlist quality = $PLAYLIST_QUALITY"
@@ -179,10 +232,10 @@ init_segments_lists() {
         FILENAME="$MOVIENAME.mp4"
         debug_log "Filename to save $FILENAME";
 
-        # segments not working for boogiemovie.
-        if [ "$DRY_RUN" == "0" ] 
+        # Segments not working for boogiemovie.
+        if [ "$DRY_RUN" == "0" ];
         then
-            if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
+            if [ "$USE_FFMPEG_DOWNLOADER" == "1" ] || [ "$DOMAIN" == "boogiemovie.online" ] ; then
                 ffmpeg -i $PLAYLIST_QUALITY -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
             else
                 segments_create $PLAYLIST_QUALITY $MOVIENAME 1

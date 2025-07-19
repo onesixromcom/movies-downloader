@@ -7,7 +7,7 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.6"
+VERSION="0.7"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.host")
 PROVIDER_NAME=""
@@ -17,8 +17,9 @@ QUALITY="480"
 SEASON=0
 # Set Audio track.
 SOUND=0
-# Playlist number (for uakino.best).
-PLAYLIST_NUM=0
+VOICE=0
+# Playlist number (for uaserials.top).
+PLAYLIST_NUM=""
 # Will create all files needed for queue download or check if movie is available for download in case of using ffmpeg downloader.
 DRY_RUN="0"
 # Set folder to download movie.
@@ -77,7 +78,7 @@ if [ -z "$URL" ]; then
     echo -e "Params for $CGreen uaserials.pro: $CN";
     printf '\t--season="1 сезон"\tSpecific season for show in text.'
     exit
-fi 
+fi
 
 for i in "${args[@]}"; do
   case "$i" in

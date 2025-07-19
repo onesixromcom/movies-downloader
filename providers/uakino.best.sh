@@ -71,6 +71,8 @@ uakino_get_json_list() {
     PLAYLISTS=$(cat "$DIR_TMP-playlist.php" |
         jq -r .response |
         hxnormalize -x |
+        tr -d '\n' | tr -d '\r' |
+        sed -e $'s/   / /g' |
         hxselect -i "div.playlists-lists div.playlists-items ul")
     
     # There are no series if it's empty. Try voices flow.
@@ -78,6 +80,8 @@ uakino_get_json_list() {
         PLAYLISTS=$(cat "$DIR_TMP-playlist.php" |
             jq -r .response | # get value by response key
             hxnormalize -x | # normalize html
+            tr -d '\n' | tr -d '\r' |
+            sed -e $'s/   / /g' |
             hxselect -i "li[data-file]"
         )
         SERIES_FLOW=""
@@ -264,7 +268,7 @@ init_segments_lists() {
         FILENAME="$MOVIENAME.mp4"
         echo "filname = $FILENAME"
         
-        if [ "$DRY_RUN" == "0" ] 
+        if [ "$DRY_RUN" == "0" ];
         then
             if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
                 ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
