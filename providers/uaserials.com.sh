@@ -66,8 +66,6 @@ init_segments_lists() {
     wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
     hxnormalize -x > "$DIR_TMP-main.html"
 
-    exit;
-
     # Try the flow with encoded player first.
     local TAG1_ENCODED=$(uaserials_com_get_player_tag1)
     if [ ! -z $TAG1_ENCODED ]; then

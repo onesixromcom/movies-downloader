@@ -3,7 +3,7 @@
 # Universal movies dowloader.
 
 # Install before use:
-# sudo apt install html-xml-utils wget ffmpeg jq curl openssl
+# sudo apt install html-xml-utils wget ffmpeg jq curl openssl python3
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
@@ -295,8 +295,7 @@ segments_download() {
       KEY_HEX=$(od -tx1 -An -N 16 "$FILE_KEY" | tr -d ' ')
     fi
 
-    for (( i=$(($COUNTER));i<=$(($TOTAL_FILES));i++)); do
-    
+    for (( i=$(($COUNTER));i<$(($TOTAL_FILES));i++)); do
         DOWNLOADED_FILE=$(basename ${FILE_LIST[${i}]} | cut -d'?' -f1)
         DESTINATION_FOLDER=${FILE_DEST[${i}]}
 
@@ -311,9 +310,8 @@ segments_download() {
           # 20 seconds in case no data is received and then try again (--read-timeout),
           # it will wait max 15 seconds before the initial connection times out (--timeout) 
           # and finally it will retry a 2 number of times (-t 2).
-          wget --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 --directory-prefix=${FILE_DEST[${i}]} ${FILE_LIST[${i}]} 
+          wget --continue --quiet --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 --directory-prefix=${FILE_DEST[${i}]} ${FILE_LIST[${i}]} 
         fi
-        
         
         # Halt if segment was not available.
         if [ ! -z "${FILE_LIST[${i}]}" ]; then
@@ -332,7 +330,7 @@ segments_download() {
               fi 
             fi
         fi
-        echo "Progress: $i / $TOTAL_FILES"
+        echo "Progress: $((i+1)) / $TOTAL_FILES"
         echo $i > $FILE_COUNTER
     done
     
@@ -365,15 +363,24 @@ segments_download() {
               # If subtitle was downloaded convert it to srt
               # and add to the processing.
               if [ -f $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME ]; then
-                ffmpeg -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME -c:s subrip $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
+                ffmpeg -y -hide_banner -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME -c:s subrip $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
                 FFMPEG_SUBTITLES="$FFMPEG_SUBTITLES -metadata:s:s:$i language=${names[i]} "
                 FFMPEG_INPUT="$FFMPEG_INPUT -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt "
                 FFMPEG_MAP="$FFMPEG_MAP -map $((i+1))"
+
+                # Subtitles are out of sync because of 23.976 framerate.
+                # Try to convert if python3 is available.
+                if command -v python3 >/dev/null 2>&1
+                then
+                  python3 ./scripts/srt-timecode-drift.py $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt_2 -0.014
+                  rm $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
+                  mv $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt_2 $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
+                fi
               fi
           done
         fi
 
-        ffmpeg -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP -c copy $FFMPEG_SUBTITLES -bsf:a aac_adtstoasc $MOVIE_OUTPUT
+        ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -bsf:a aac_adtstoasc $MOVIE_OUTPUT
         rm -rf $MOVIE_FFMPEG
         rm -rf $MOVIE_FOLDER_SEGMENTS
         rm -rf $movie_vars
