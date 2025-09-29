@@ -1,5 +1,13 @@
 CHANGELOG
 
+VERSION 0.7
+- fix subtitles drift
+- iprove uaserials.com seasons and voice download
+- prmovies stop working because of TS file key changes
+
+VERSION 0.6
+- update providers to the latest working version
+
 VERSION 0.5
 - uaserials.top support for boogiemovie.
 - playlist param support for boogiemovie.

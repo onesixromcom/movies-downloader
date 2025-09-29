@@ -19,7 +19,7 @@ CryptoJSAesDecrypt = function (passphrase, encrypted_json_string){
 
 var encrypted_json_string = process.argv[2];
 var season_num = process.argv[3] ? process.argv[3] : 0;
-var sound_num = process.argv[4] ? process.argv[4] : 0;
+var voice_num = process.argv[4] ? process.argv[4] : 0;
 
 var result = CryptoJSAesDecrypt(passphrase, encrypted_json_string);
 
@@ -29,10 +29,22 @@ for (item of result) {
 	if (item.tabName == 'Плеєр') {
 		if (typeof item.url !== 'undefined') {
 			urls.push(item.url);
-		}		 
-		if (typeof item.seasons !== 'undefined' && item.seasons[season_num]) {
-			for (episode of item.seasons[season_num].episodes){
-				urls.push(episode.sounds[sound_num].url);
+		}
+		if (typeof item.seasons !== 'undefined') {
+			// Fallback to first season.
+			if (season_num > 0 && typeof item.seasons[season_num] == 'undefined' && item.seasons[0]) {
+				season_num = 0;
+			}
+			if (item.seasons[season_num]) {
+				for (episode of item.seasons[season_num].episodes){
+					if (typeof episode.sounds[voice_num] !== 'undefined') {
+						urls.push(episode.sounds[voice_num].url);
+					}
+					// Fallback to the first voice.
+					else if (typeof episode.sounds[0] !== 'undefined') {
+						urls.push(episode.sounds[0].url);
+					}
+				}
 			}
 		}
 	}

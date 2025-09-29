@@ -5,6 +5,9 @@
 # 2. extract json data from the page
 # 3. get all playlist files with required quality 
 
+# Specify Season and Voice via cli param.
+# ./movie.sh https://uaserials.com/some-cartoon --season=1 --voice=1
+
 DIR_TMP="$DIR_TMP/uaserials"
 
 # Get encoded tag1 from iframe
@@ -69,7 +72,7 @@ init_segments_lists() {
     # Try the flow with encoded player first.
     local TAG1_ENCODED=$(uaserials_com_get_player_tag1)
     if [ ! -z $TAG1_ENCODED ]; then
-        PLAYER_IFRAMES=$(node ./scripts/uaserials_com_crypto.js $TAG1_ENCODED)
+        PLAYER_IFRAMES=$(node ./scripts/uaserials_com_crypto.js $TAG1_ENCODED $SEASON $VOICE)
         echo "+ Player Iframe was found via tag1"
     fi
 
@@ -109,7 +112,6 @@ init_segments_lists() {
             unset PLAYER_IFRAMES[$i]
         done
     fi
-    
     
     # Unset video we dont want to download.
     if [ $TOTAL -gt 0 ]; then

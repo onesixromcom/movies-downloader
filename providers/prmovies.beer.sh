@@ -1,9 +1,12 @@
 #!/bin/bash
 
-# Handle prmovies.host requests
+# Handle prmovies.beer requests
 # 1. Get iframe from the movie page
-# 2. Load m3u8 playlist from iframe.
-# 3. Get ts files from the iframe.
+# 2. Load m3u8 playlist from iframe
+# 3. Get ts files from the iframe
+# 4. Get KEY file from m38u
+# 5. Decode ts files
+# INFO: decoder of TS files is not working. Unkonown key :(
 
 headers_source=(
   "Accept: */*"
@@ -45,7 +48,7 @@ prmovies_get_main_playlist_in_iframe() {
   -H 'cache-control: no-cache' \
   -H 'pragma: no-cache' \
   -H 'priority: u=0, i' \
-  -H 'referer: https://prmovies.host/' \
+  -H 'referer: https://prmovies.beer/' \
   -H 'sec-ch-ua: "Not A(Brand";v="8", "Chromium";v="132"' \
   -H 'sec-ch-ua-mobile: ?0' \
   -H 'sec-ch-ua-platform: "Linux"' \
@@ -66,10 +69,10 @@ prmovies_get_quality_playlist() {
 } 
 
 # Create filename from playlist url.
-# exmaple url https://prmovies.host/some-movie-name-Watch-online-full-movie/
+# exmaple url https://prmovies.beer/some-movie-name-Watch-online-full-movie/
 prmovies_get_filename_from_url() {
     echo $1 |
-    sed 's/.*\.host\/\([^/]*\)\/.*/\1/' # get
+    sed 's/.*\.beer\/\([^/]*\)\/.*/\1/' # get
 }
 
 # Get m3u8 movie playlist with the segments.
@@ -123,7 +126,8 @@ init_segments_lists() {
 
     # Save movie playlist data to use it in segments create.
     echo "$MOVIE_PLAYLIST" > $DIR_TMP/$MOVIENAME.m3u8
-    # Since streams are encoded we should get and save the key.
+    # Since streams are encoded we should get and save the key from m3u8
+    # in #EXT-X-KEY:METHOD=AES-128,URI= line
     MOVIE_KEY_URI=$(echo "$MOVIE_PLAYLIST" | sed -n 's/.*URI="\([^"]*\)".*/\1/p')
     # Download and save.
     FILE_KEY="$VARS_DIR/$MOVIENAME.key"
