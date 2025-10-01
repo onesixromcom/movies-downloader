@@ -7,7 +7,7 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.7"
+VERSION="0.8.0"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer")
 PROVIDER_NAME=""
@@ -345,7 +345,7 @@ segments_download() {
         # Load variables per movie
         . "$movie_vars"
 
-        FFMPEG_INPUT="-i $MOVIE_FFMPEG -c copy "
+        FFMPEG_INPUT="-i $MOVIE_FFMPEG "
         FFMPEG_MAP=" -map 0 "
         FFMPEG_SUBTITLES="-c:s mov_text "
 
@@ -383,7 +383,7 @@ segments_download() {
           done
         fi
 
-        ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -bsf:a aac_adtstoasc $MOVIE_OUTPUT
+        ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -bsf:a aac_adtstoasc $MOVIE_OUTPUT
         rm -rf $MOVIE_FFMPEG
         rm -rf $MOVIE_FOLDER_SEGMENTS
         rm -rf $movie_vars

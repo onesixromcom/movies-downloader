@@ -93,34 +93,40 @@ uakino_get_json_list() {
         echo "No voices players found."
         return 1
     fi
+    choice=1;
 
-    # Build the pattern (1|2|3|4|5)
-    pattern=""
-    for i in "${!TITLES[@]}"; do
-        if [ -z "$pattern" ]; then
-            pattern="$((i+1))"
-        else
-            pattern="$pattern|$((i+1))"
-        fi
-    done
+    # Select the only voice available automatically.
+    if [ "1" -ne "${#TITLES[@]}" ]; then
+        # Build the pattern (1|2|3|4|5)
+        pattern=""
+        for i in "${!TITLES[@]}"; do
+            if [ -z "$pattern" ]; then
+                pattern="$((i+1))"
+            else
+                pattern="$pattern|$((i+1))"
+            fi
+        done
 
-    echo "Choose an option (1-${#TITLES[@]}):"
-    for i in "${!TITLES[@]}"; do
-        echo "$((i+1)). ${TITLES[i]}"
-    done
+        echo "Choose an option (1-${#TITLES[@]}):"
+        for i in "${!TITLES[@]}"; do
+            echo "$((i+1)). ${TITLES[i]}"
+        done
 
-    while true; do
-        read -n 1 -s choice
-        case $choice in
-            [$pattern])
-                echo "You chose: ${TITLES[$((choice-1))]}"
-                break
-                ;;
-            *)
-                echo "Invalid choice. Please press 1-${#TITLES[@]}."
-                ;;
-        esac
-    done
+        while true; do
+            read -n 1 -s choice
+            case $choice in
+                [$pattern])
+                    echo "You chose: ${TITLES[$((choice-1))]}"
+                    break
+                    ;;
+                *)
+                    echo "Invalid choice. Please press 1-${#TITLES[@]}."
+                    ;;
+            esac
+        done
+    else
+        echo "Automatic choice: ${TITLES[$((choice-1))]}"
+    fi
 
     if [ -z $SERIES_FLOW ]; then
         readarray -t LISTS < <(echo "$PLAYLISTS" | grep -o 'data-file="[^"]*"' | sed 's/data-file="//g' | sed 's/"//g')
@@ -181,7 +187,7 @@ uakino_get_filename_from_url() {
         sed 's#.*/##' # leave only last word
         #https://s2.ashdi.vip/content/stream/serials/stranger_thing_s2/stranger_things__s02e09__chapter_nine._the_gate_65844/hls/
     else
-        # get episode num first
+        # Get the episode num first.
         EPISODE=$(echo $1 | sed 's/\/hls.*//' | sed 's#.*/##')
         NAME=$(echo $1 | sed "s/\/$EPISODE.*//" | sed 's#.*/##') 
         echo "$NAME"_"$EPISODE"
@@ -197,7 +203,7 @@ init_segments_lists() {
     TIMESTAMP=$(uakino_get_timestamp_locally)
 
     debug_log "Playlist ID = $PLAYLIST_ID"
-    debug_log "timestamp = $TIMESTAMP"
+    debug_log "Timestamp = $TIMESTAMP"
 
     IFRAMES_LIST=""
     # Get the lists with propmt.

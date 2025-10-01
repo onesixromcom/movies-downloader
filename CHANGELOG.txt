@@ -1,5 +1,9 @@
 CHANGELOG
 
+VERSION 0.8.0
+- Fix ffmpeg concat with subtitles
+- Autoselect the only available voice in uakino
+
 VERSION 0.7
 - fix subtitles drift
 - iprove uaserials.com seasons and voice download
