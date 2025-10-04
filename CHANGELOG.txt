@@ -1,5 +1,11 @@
 CHANGELOG
 
+VERSION 0.8.1
+- Fix ashdi playlist getter
+- Move main playlist getter to universal function
+- Fix progress status in one line
+- Fix quality playlist when there are one quality playslist for all dimensions.
+
 VERSION 0.8.0
 - Fix ffmpeg concat with subtitles
 - Autoselect the only available voice in uakino

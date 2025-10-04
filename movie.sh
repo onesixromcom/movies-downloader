@@ -7,7 +7,7 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.8.0"
+VERSION="0.8.1"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer")
 PROVIDER_NAME=""
@@ -124,7 +124,7 @@ for i in "${args[@]}"; do
     --clear)
       echo "Clear all variables and tmp segments."
       rm -rf $VARS_DIR/*
-    #   rm -rf $DIR_TMP/*
+      rm -rf $DIR_TMP/*.html
       rm -rf $OUTPUT_SEGMENTS/*
       ;;  
     *)
@@ -160,10 +160,90 @@ get_host() {
 extract_domain() {
     local url="$1"
     # Remove protocol (http://, https://, etc.)
-    domain=$(echo "$url" | sed -E 's#^(https?://)?([^/]+).*#\2#')
+    local domain=$(echo "$url" | sed -E 's#^(https?://)?([^/]+).*#\2#')
     # Remove port number if present
     domain=$(echo "$domain" | sed -E 's#(.+):[0-9]+$#\1#')
     echo "$domain"
+}
+
+# $1 is the iframe url
+movie_get_main_playlist() {
+    local domain=$(extract_domain $1)
+    local file_iframe="$DIR_TMP-iframe-video.html"
+
+    # Save to file for debug.
+    if test ! -f "$file_iframe"; then
+        echo $1 |
+        sed  's/https://' | sed 's/\/\//https:\/\//' | 
+        wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+        hxnormalize -x > "$file_iframe"
+    fi
+
+    if [ "$domain" == "ashdi.vip" ] 
+    then
+        cat "$file_iframe" |
+        grep -E -o "file:'(.*)m3u8" | 
+        sed -n "s/file:'//p"
+    fi
+
+    if [ "$domain" == "boogiemovie.online" ] 
+    then
+        cat "$file_iframe" |
+        grep -E -o "manifest: '(.*)m3u8'," | 
+        sed -n "s/manifest: '\(.*\)',/\1/p"
+    fi
+
+    echo ""
+}
+
+# Get quality playlist from main playlist.
+movie_get_quality_playlist() {
+    local domain=$(extract_domain $1)
+    local file_iframe="$DIR_TMP-iframe-video.html"
+
+    if [ "$DOMAIN" == "ashdi.vip" ] 
+    then
+        cat $file_iframe |
+        wget -O- -i- --no-verbose --quiet | 
+        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" | head -1
+    fi
+
+    if [ "$DOMAIN" == "boogiemovie.online" ] 
+    then
+        cat $file_iframe |
+        wget -O- -i- --no-verbose --quiet > "$DIR_TMP-playlists.m3u8"
+        local PLAYLIST=$(
+            cat "$DIR_TMP-playlists.m3u8" |
+            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+        )
+        # Could be empty because of non-standard quality. Using the lowest one.
+        if [ -z $PLAYLIST ]; then
+            QUALITY=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
+            PLAYLIST=$(cat "$DIR_TMP-playlists.m3u8" |
+            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+            )
+        fi
+
+        echo $PLAYLIST
+    fi
+
+    echo ""
+} 
+
+movie_get_subtitles() {
+    local url="$1"
+    local domain=$(extract_domain $1)
+    # File should be already present.
+    local file_iframe="$DIR_TMP-iframe-video.html"
+
+    if [ "$domain" == "ashdi.vip" ] 
+    then
+        cat "$file_iframe" |
+        grep -E -o 'subtitle:"(.*)"' | 
+        sed -n 's/subtitle:"//p' | sed -n 's/"//p'
+    fi
+
+    echo ""
 }
 
 # Show debug info.
@@ -333,7 +413,8 @@ segments_download() {
               fi 
             fi
         fi
-        echo "Progress: $((i+1)) / $TOTAL_FILES"
+        # Make progress status in one line.
+        echo -ne "Progress: $((i+1)) / $TOTAL_FILES \r"
         echo $i > $FILE_COUNTER
     done
     

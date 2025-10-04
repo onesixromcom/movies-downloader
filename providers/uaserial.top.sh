@@ -83,57 +83,6 @@ uaserial_get_service_iframe_url() {
     PLAYLIST_NUM=$((choice-1))
 }
 
-uaserial_get_main_playlist_in_iframe() {
-    if [ "$DOMAIN" == "ashdi.vip" ] 
-    then
-        echo $1 |
-        wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-        grep -E -o 'file:"(.*)m3u8' | 
-        sed -n 's/file:"//p'
-    fi
-
-    if [ "$DOMAIN" == "boogiemovie.online" ] 
-    then
-        echo $1 |
-        wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-        hxnormalize -x |
-        grep -E -o "manifest: '(.*)m3u8'," | 
-        sed -n "s/manifest: '\(.*\)',/\1/p"
-    fi
-
-    echo ""
-}
-
-
-# Get quality playlist from main playlist.
-uaserial_com_get_quality_playlist() {
-    if [ "$DOMAIN" == "ashdi.vip" ] 
-    then
-        echo $1 |
-        wget -O- -i- --no-verbose --quiet | 
-        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8"
-    fi
-
-    if [ "$DOMAIN" == "boogiemovie.online" ] 
-    then
-        echo $1 |
-        wget -O- -i- --no-verbose --quiet > "$DIR_TMP-playlists.m3u8"
-        local PLAYLIST=$(
-            cat "$DIR_TMP-playlists.m3u8" |
-            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
-        )
-        # Could be empty because of non-standard quality. Using the lowest one.
-        if [ -z $PLAYLIST ]; then
-            QUALITY=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
-            PLAYLIST=$(cat "$DIR_TMP-playlists.m3u8" |
-            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
-            )
-        fi
-
-        echo $PLAYLIST
-    fi
-} 
-
 uaserial_get_filename_from_url() {
     local playlist_url=$1
     if [ "$DOMAIN" == "ashdi.vip" ] 
@@ -218,10 +167,10 @@ init_segments_lists() {
         DOMAIN=$(extract_domain $SERVICE_IFRAME)
         # echo "Video domain: $DOMAIN"
         
-        PLAYLIST_MAIN=$(uaserial_get_main_playlist_in_iframe $SERVICE_IFRAME)
+        PLAYLIST_MAIN=$(movie_get_main_playlist $SERVICE_IFRAME)
         echo "Playlist main = $PLAYLIST_MAIN"
 
-        PLAYLIST_QUALITY=$(uaserial_com_get_quality_playlist $PLAYLIST_MAIN)
+        PLAYLIST_QUALITY=$(movie_get_quality_playlist $PLAYLIST_MAIN)
         debug_log "Playlist quality = $PLAYLIST_QUALITY"
         if [ -z "$PLAYLIST_QUALITY" ]; then
             echo "Playlist for selected quality not found. Try another."

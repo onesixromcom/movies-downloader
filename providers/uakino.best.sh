@@ -6,8 +6,8 @@
 # https://github.com/lwthiker/curl-impersonate
 # Install it to some folder and provide the path in CURLIMP variable
 
-CURL_ORIG="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl-impersonate-chrome"
-CURL_CHROME="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl_chrome116"
+CURL_ORIG="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl-impersonate-chrome -s"
+CURL_CHROME="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl_chrome116 -s"
 DIR_TMP="$DIR_TMP/uakino"
 
 uakino_get_single_iframe_video_url() {
@@ -145,9 +145,6 @@ uakino_get_json_list() {
 
         readarray -t IFRAMES_LIST < <(echo "$ELEMENTS" | grep -o 'data-file="[^"]*"' | sed 's/data-file="//g' | sed 's/"//g')
     fi
-
-    # Display selected values
-    # printf '%s\n' "${IFRAMES_LIST[@]}"
 }
 
 uakino_get_json_list2() {
@@ -159,24 +156,6 @@ uakino_get_json_list2() {
     sed 's/data-file/href/g' | #replacements to make hxwls work
     sed 's/<li /<a /g' |  #replacements to make hxwls work
     hxwls
-} 
-
-uakino_get_main_playlist_in_iframe() {
-    cat "$DIR_TMP-iframe-video.html" |
-    grep -E -o 'file:"(.*)m3u8' | 
-    sed -n 's/file:"//p'
-}
-
-uakino_get_subtitles_in_iframe() {
-    cat "$DIR_TMP-iframe-video.html" |
-    grep -E -o 'subtitle:"(.*)"' | 
-    sed -n 's/subtitle:"//p' | sed -n 's/"//p'
-} 
-
-uakino_get_quality_playlist() {
-    echo $1 |
-    wget -O- -i- --no-verbose --quiet | 
-    grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8"
 } 
 
 uakino_get_filename_from_url() {
@@ -251,28 +230,34 @@ init_segments_lists() {
         done
     fi
 
-    for iframe in "${IFRAMES_LIST[@]}";
+    for iframe_url in "${IFRAMES_LIST[@]}";
     do
-        echo "IFRAME = $iframe"
-        # Save video iframe.
-        echo $iframe |
-        sed  's/https://' | sed 's/\/\//https:\/\//' | 
-        wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-        hxnormalize -x > "$DIR_TMP-iframe-video.html"
+        echo "IFRAME = $iframe_url"
 
-        VIDEO_URI=$(uakino_get_main_playlist_in_iframe $iframe)
-        echo "playlist main = $VIDEO_URI"
-        PLAYLIST=$(uakino_get_quality_playlist $VIDEO_URI)
-        echo "playlist quality = $PLAYLIST"
+        # Get video uri.
+        VIDEO_URI=$(movie_get_main_playlist $iframe_url)
+        
+        if [ -z "$VIDEO_URI" ]; then
+            echo "Playlist for selected quality not found. Try another."
+            exit
+        fi
+
+        echo "Playlist main = $VIDEO_URI"
+
+        PLAYLIST=$(movie_get_quality_playlist $VIDEO_URI)
+        
         if [ -z "$PLAYLIST" ]; then
             echo "Playlist for selected quality not found. Try another."
             exit
         fi
+
+        echo "Playlist quality = $PLAYLIST"
+
         # Get subtitles.
-        SUBTITLES=$(uakino_get_subtitles_in_iframe)
+        SUBTITLES=$(movie_get_subtitles $iframe_url)
         MOVIENAME=$(uakino_get_filename_from_url $VIDEO_URI)
         FILENAME="$MOVIENAME.mp4"
-        echo "filname = $FILENAME"
+        echo "Movie filename = $FILENAME"
         
         if [ "$DRY_RUN" == "0" ];
         then
