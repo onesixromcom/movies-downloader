@@ -199,28 +199,30 @@ movie_get_main_playlist() {
 # Get quality playlist from main playlist.
 movie_get_quality_playlist() {
     local domain=$(extract_domain $1)
-    local file_iframe="$DIR_TMP-iframe-video.html"
+    local file_playlist="$DIR_TMP-playlists.m3u8"
 
-    if [ "$DOMAIN" == "ashdi.vip" ] 
+    echo $1 | wget -O- -i- --no-verbose --quiet > "$file_playlist"
+
+    if [ "$domain" == "ashdi.vip" ] 
     then
-        cat $file_iframe |
-        wget -O- -i- --no-verbose --quiet | 
-        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" | head -1
+        cat "$file_playlist" |
+        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" |
+        head -1
     fi
 
-    if [ "$DOMAIN" == "boogiemovie.online" ] 
+    if [ "$domain" == "boogiemovie.online" ] 
     then
-        cat $file_iframe |
-        wget -O- -i- --no-verbose --quiet > "$DIR_TMP-playlists.m3u8"
+        
         local PLAYLIST=$(
-            cat "$DIR_TMP-playlists.m3u8" |
+            cat "$file_playlist" |
             grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
         )
         # Could be empty because of non-standard quality. Using the lowest one.
         if [ -z $PLAYLIST ]; then
             QUALITY=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
-            PLAYLIST=$(cat "$DIR_TMP-playlists.m3u8" |
-            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+            PLAYLIST=$(cat "$file_playlist" |
+                grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8" |
+                head -1
             )
         fi
 
@@ -442,7 +444,7 @@ segments_download() {
           for i in "${!links[@]}"; do
               SUBTITLE_LINK="${links[i]}"
               SUBTITLE_NAME=$(basename $SUBTITLE_LINK)
-              echo "Download subtitle: $SUBTITLE_NAME"
+              echo "Downloading subtitles: $SUBTITLE_NAME"
               wget $SUBTITLE_LINK --output-document=$MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME --no-verbose
               # If subtitle was downloaded convert it to srt
               # and add to the processing.
@@ -524,8 +526,9 @@ echo "skip $SKIP"
 echo "total $TOTAL"
 
 segments_remove_tmp_files
+echo "---------------------------------------"
 init_segments_lists
-
+echo "---------------------------------------"
 segments_download
 
 echo "$PROGRAM_NAME finished."
