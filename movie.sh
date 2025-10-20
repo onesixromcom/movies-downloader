@@ -466,7 +466,7 @@ segments_download() {
           done
         fi
 
-        ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -bsf:a aac_adtstoasc $MOVIE_OUTPUT
+        ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -c:a copy $MOVIE_OUTPUT
         rm -rf $MOVIE_FFMPEG
         rm -rf $MOVIE_FOLDER_SEGMENTS
         rm -rf $movie_vars
