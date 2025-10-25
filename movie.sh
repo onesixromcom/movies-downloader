@@ -7,7 +7,7 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.8.1"
+VERSION="0.8.2"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer")
 PROVIDER_NAME=""
@@ -466,7 +466,21 @@ segments_download() {
           done
         fi
 
+        # Create movie from the parts
         ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -c:a copy $MOVIE_OUTPUT
+
+        # Add chapters to the movie.
+        echo "Adding chapters to the movie"
+        # Extract meta info from the video.
+        ffmpeg -hide_banner -y -i $MOVIE_OUTPUT -f ffmetadata "$DIR_TMP-META"
+        # Add chapters every 10 mins.
+        ./scripts/auto-chapters.sh $MOVIE_OUTPUT "$DIR_TMP-META"
+        ffmpeg -hide_banner -y -i $MOVIE_OUTPUT -i "$DIR_TMP-META" -map_metadata 1 -codec copy "$MOVIE_OUTPUT-ch.mp4"
+        if test -f "$MOVIE_OUTPUT-ch.mp4"; then
+          rm $MOVIE_OUTPUT
+          mv "$MOVIE_OUTPUT-ch.mp4" $MOVIE_OUTPUT
+        fi
+
         rm -rf $MOVIE_FFMPEG
         rm -rf $MOVIE_FOLDER_SEGMENTS
         rm -rf $movie_vars

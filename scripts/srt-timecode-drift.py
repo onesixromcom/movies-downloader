@@ -3,6 +3,8 @@
 SRT Subtitle Timecode Sync Script
 Adjusts SRT subtitle timecodes with progressive offset correction
 Removes accumulated drift (0.024 seconds per second of runtime)
+
+Credits?
 """
 
 import re
@@ -142,14 +144,14 @@ def calculate_drift_from_known_offset(time_minutes, observed_offset_seconds):
 def main():
     """Main function with command line argument handling"""
     if len(sys.argv) < 2:
-        print("Usage: python SRT_sync.py <input_SRT_file> [output_SRT_file] [drift_per_second]")
-        print("   or: python SRT_sync.py <input_SRT_file> --calc-drift <minutes> <offset_seconds>")
+        print("Usage: python srt-timecode-drift.py <input_SRT_file> [output_SRT_file] [drift_per_second]")
+        print("   or: python srt-timecode-drift.py <input_SRT_file> --calc-drift <minutes> <offset_seconds>")
         print()
         print("Examples:")
-        print("  python SRT_sync.py subtitles.SRT")
-        print("  python SRT_sync.py subtitles.SRT synced_subtitles.SRT")
-        print("  python SRT_sync.py subtitles.SRT synced.SRT 0.024")
-        print("  python SRT_sync.py subtitles.SRT --calc-drift 30 43.2")
+        print("  python srt-timecode-drift.py subtitles.SRT")
+        print("  python srt-timecode-drift.py subtitles.SRT synced_subtitles.SRT")
+        print("  python srt-timecode-drift.py subtitles.SRT synced.SRT 0.024")
+        print("  python srt-timecode-drift.py subtitles.SRT --calc-drift 30 43.2")
         print()
         print("Default drift: 0.024 seconds per second (25fps -> 23.976fps)")
         print("--calc-drift: Calculate drift from known offset at specific time")
@@ -170,7 +172,7 @@ def main():
             print(f"  Time point: {time_minutes} minutes")
             print(f"  Observed offset: {offset_seconds} seconds")
             print(f"  Calculated drift per second: {calculated_drift:.6f}")
-            print(f"  Use this value: python SRT_sync.py {input_file} output.SRT {calculated_drift:.6f}")
+            print(f"  Use this value: python srt-timecode-drift.py {input_file} output.SRT {calculated_drift:.6f}")
             return
             
         except ValueError:

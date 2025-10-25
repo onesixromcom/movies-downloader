@@ -1,10 +1,13 @@
 CHANGELOG
 
+VERSION 0.8.2
+- New script to add chapters to the movies
+
 VERSION 0.8.1
 - Fix ashdi playlist getter
 - Move main playlist getter to universal function
 - Fix progress status in one line
-- Fix quality playlist when there are one quality playslist for all dimensions.
+- Fix quality playlist when there are one quality playslist for all dimensions
 
 VERSION 0.8.0
 - Fix ffmpeg concat with subtitles
@@ -19,7 +22,7 @@ VERSION 0.6
 - update providers to the latest working version
 
 VERSION 0.5
-- uaserials.top support for boogiemovie.
-- playlist param support for boogiemovie.
-- uakino.me is not working.
-- boogiemovie works with --use-ffmpeg param only.
+- uaserials.top support for boogiemovie
+- playlist param support for boogiemovie
+- uakino.me is not working
+- boogiemovie works with --use-ffmpeg param only
