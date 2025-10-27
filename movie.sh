@@ -7,9 +7,9 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.8.2"
+VERSION="0.9.0"
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer")
+SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer" "kinoukr.tv")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -166,6 +166,24 @@ extract_domain() {
     echo "$domain"
 }
 
+movie_download_main_page() {
+    # Download the page.
+    echo $URL |
+    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    hxnormalize -x > "$DIR_TMP-main.html"
+}
+
+movie_get_filename_from_url() {
+    local domain=$(extract_domain $1)
+
+    if [ "$domain" == "ashdi.vip" ] 
+    then
+        echo $1 |
+        sed 's/\/hls.*//' |  # remove text before hls
+        sed 's#.*/##' # leave only last word
+    fi
+}
+
 # $1 is the iframe url
 movie_get_main_playlist() {
     local domain=$(extract_domain $1)
@@ -179,11 +197,22 @@ movie_get_main_playlist() {
         hxnormalize -x > "$file_iframe"
     fi
 
+    # TODO: we can have voices and series selectors here.
     if [ "$domain" == "ashdi.vip" ] 
     then
-        cat "$file_iframe" |
-        grep -E -o "file:'(.*)m3u8" | 
-        sed -n "s/file:'//p"
+        local playlist=$(cat "$file_iframe" |
+            grep -E -o "file:'(.*)m3u8" | 
+            sed -n "s/file:'//p")
+        if [[ ! $playlist =~ ^https ]]; then
+            # Get selected series and voice
+            playlist=$(cat "$file_iframe" |
+                grep -E -o "file:'(.*)'" | 
+                sed -n "s/file:'//p" |
+                sed -n "s/'//p" )
+            echo $(node $DIR_SCRIPTS/ashdi.js "$playlist" "$VOICE" "$SEASON")
+        else
+            echo "$playlist"
+        fi
     fi
 
     if [ "$domain" == "boogiemovie.online" ] 
