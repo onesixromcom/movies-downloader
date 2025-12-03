@@ -160,7 +160,7 @@ get_host() {
 extract_domain() {
     local url="$1"
     # Remove protocol (http://, https://, etc.)
-    local domain=$(echo "$url" | sed -E 's#^(https?://)?([^/]+).*#\2#')
+    local domain=$(echo "$url" | sed -E 's#^(https?:)?//([^/]+).*#\2#')
     # Remove port number if present
     domain=$(echo "$domain" | sed -E 's#(.+):[0-9]+$#\1#')
     echo "$domain"
@@ -176,7 +176,7 @@ movie_download_main_page() {
 movie_get_filename_from_url() {
     local domain=$(extract_domain $1)
 
-    if [ "$domain" == "ashdi.vip" ] 
+    if [ "$domain" == "ashdi.vip" ]
     then
         echo $1 |
         sed 's/\/hls.*//' |  # remove text before hls
@@ -200,13 +200,13 @@ movie_get_main_playlist() {
     # TODO: we can have voices and series selectors here.
     if [ "$domain" == "ashdi.vip" ] 
     then
-        local playlist=$(cat "$file_iframe" |
-            grep -E -o "file:'(.*)m3u8" | 
+        local playlist=$(
+            grep -E -o "file:'(.*)m3u8" "$file_iframe" |
             sed -n "s/file:'//p")
         if [[ ! $playlist =~ ^https ]]; then
             # Get selected series and voice
-            playlist=$(cat "$file_iframe" |
-                grep -E -o "file:'(.*)'" | 
+            playlist=$(
+                grep -E -o "file:'(.*)'" "$file_iframe" |
                 sed -n "s/file:'//p" |
                 sed -n "s/'//p" )
             echo $(node $DIR_SCRIPTS/ashdi.js "$playlist" "$VOICE" "$SEASON")
@@ -217,8 +217,7 @@ movie_get_main_playlist() {
 
     if [ "$domain" == "boogiemovie.online" ] 
     then
-        cat "$file_iframe" |
-        grep -E -o "manifest: '(.*)m3u8'," | 
+        grep -E -o "manifest: '(.*)m3u8'," "$file_iframe" |
         sed -n "s/manifest: '\(.*\)',/\1/p"
     fi
 
@@ -234,8 +233,7 @@ movie_get_quality_playlist() {
 
     if [ "$domain" == "ashdi.vip" ] 
     then
-        cat "$file_playlist" |
-        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" |
+        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" "$file_playlist" |
         head -1
     fi
 
@@ -243,14 +241,13 @@ movie_get_quality_playlist() {
     then
         
         local PLAYLIST=$(
-            cat "$file_playlist" |
-            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8"
+            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8" "$file_playlist"
         )
         # Could be empty because of non-standard quality. Using the lowest one.
         if [ -z $PLAYLIST ]; then
             QUALITY=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
-            PLAYLIST=$(cat "$file_playlist" |
-                grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8" |
+            PLAYLIST=$(
+                grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8" "$file_playlist" |
                 head -1
             )
         fi
@@ -269,8 +266,7 @@ movie_get_subtitles() {
 
     if [ "$domain" == "ashdi.vip" ] 
     then
-        cat "$file_iframe" |
-        grep -E -o 'subtitle:"(.*)"' | 
+        grep -E -o 'subtitle:"(.*)"' "$file_iframe" |
         sed -n 's/subtitle:"//p' | sed -n 's/"//p'
     fi
 
