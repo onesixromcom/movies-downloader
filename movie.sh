@@ -166,6 +166,12 @@ extract_domain() {
     echo "$domain"
 }
 
+get_temp_iframe_filename() {
+  local url="$1"
+  local urlfile=$(echo "$url" | sed -E 's#^(https?:)?//([^/]+)(.*)#\3#' | sed -E 's#\/+#-#g')
+  echo "$DIR_TMP-iframe-video-$urlfile.html"
+}
+
 movie_download_main_page() {
     # Download the page.
     echo $URL |
@@ -187,15 +193,13 @@ movie_get_filename_from_url() {
 # $1 is the iframe url
 movie_get_main_playlist() {
     local domain=$(extract_domain $1)
-    local file_iframe="$DIR_TMP-iframe-video.html"
+    local file_iframe=$(get_temp_iframe_filename $1)
 
     # Save to file for debug.
-    if test ! -f "$file_iframe"; then
-        echo $1 |
-        sed  's/https://' | sed 's/\/\//https:\/\//' | 
-        wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-        hxnormalize -x > "$file_iframe"
-    fi
+    echo $1 |
+    sed  's/https://' | sed 's/\/\//https:\/\//' |
+    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    hxnormalize -x > "$file_iframe"
 
     # TODO: we can have voices and series selectors here.
     if [ "$domain" == "ashdi.vip" ] 
@@ -208,7 +212,7 @@ movie_get_main_playlist() {
             playlist=$(
                 grep -E -o "file:'(.*)'" "$file_iframe" |
                 sed -n "s/file:'//p" |
-                sed -n "s/'//p" )
+                sed -n "s/'//p")
             echo $(node $DIR_SCRIPTS/ashdi.js "$playlist" "$VOICE" "$SEASON")
         else
             echo "$playlist"
@@ -262,7 +266,7 @@ movie_get_subtitles() {
     local url="$1"
     local domain=$(extract_domain $1)
     # File should be already present.
-    local file_iframe="$DIR_TMP-iframe-video.html"
+    local file_iframe=$(get_temp_iframe_filename $1)
 
     if [ "$domain" == "ashdi.vip" ] 
     then
@@ -315,7 +319,7 @@ segments_create() {
       fi
     fi
 
-    echo "Creating segments for $playlist_url"
+    echo "Creating segments for $MOVIE_NAME"
     
     FILE_MOVIE_VARS="$VARS_DIR/$MOVIE_NAME.vars"
     FILE_FFMPEG_LIST="$VARS_DIR/$MOVIE_NAME.ffmpeg"

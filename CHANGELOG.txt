@@ -1,5 +1,8 @@
 CHANGELOG
 
+0.9.2
+- Fix series download
+
 0.9.1
 - Code refactor.
 - Domain extractor fix.
