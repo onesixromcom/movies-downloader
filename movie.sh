@@ -7,9 +7,9 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.9.0"
+VERSION="0.9.3"
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer" "kinoukr.tv")
+SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer" "kinoukr.tv" "uafix.net")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
 QUALITY="480"
@@ -172,9 +172,17 @@ get_temp_iframe_filename() {
   echo "$DIR_TMP-iframe-video-$urlfile.html"
 }
 
+# 1 - download another url
 movie_download_main_page() {
+    local url="$URL"
+    if [ ! -z "$1" ]; then
+      url="$1"
+    fi
+
+    # echo "Download page $url"
+
     # Download the page.
-    echo $URL |
+    echo "$url" |
     wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
     hxnormalize -x > "$DIR_TMP-main.html"
 }
@@ -188,21 +196,33 @@ movie_get_filename_from_url() {
         sed 's/\/hls.*//' |  # remove text before hls
         sed 's#.*/##' # leave only last word
     fi
+
+    if [ "$domain" == "zetvideo.net" ]
+    then
+        echo $1 |
+        sed 's/\/hls.*//' |  # remove text before hls
+        sed 's#.*/##' # leave only last word
+    fi
 }
 
 # $1 is the iframe url
+# $2 filename if it was already downloaded
 movie_get_main_playlist() {
     local domain=$(extract_domain $1)
-    local file_iframe=$(get_temp_iframe_filename $1)
-
-    # Save to file for debug.
-    echo $1 |
-    sed  's/https://' | sed 's/\/\//https:\/\//' |
-    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    hxnormalize -x > "$file_iframe"
+    local file_iframe=""
+    if [ ! -z "$2" ];then
+      file_iframe=$2
+    else
+      file_iframe=$(get_temp_iframe_filename $1)
+      # Save to file for debug.
+      echo $1 |
+      sed  's/https://' | sed 's/\/\//https:\/\//' |
+      wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+      hxnormalize -x > "$file_iframe"
+    fi
 
     # TODO: we can have voices and series selectors here.
-    if [ "$domain" == "ashdi.vip" ] 
+    if [ "$domain" == "ashdi.vip" ]
     then
         local playlist=$(
             grep -E -o "file:'(.*)m3u8" "$file_iframe" |
@@ -214,6 +234,24 @@ movie_get_main_playlist() {
                 sed -n "s/file:'//p" |
                 sed -n "s/'//p")
             echo $(node $DIR_SCRIPTS/ashdi.js "$playlist" "$VOICE" "$SEASON")
+        else
+            echo "$playlist"
+        fi
+    fi
+
+    if [ "$domain" == "zetvideo.net" ]
+    then
+        local playlist=$(
+            grep -E -o "file:\"(.*)m3u8" "$file_iframe" |
+            sed -n "s/file:\"//p")
+        if [[ ! $playlist =~ ^https ]]; then
+            # Get selected series and voice
+            # playlist=$(
+            #     grep -E -o "file:'(.*)'" "$file_iframe" |
+            #     sed -n "s/file:'//p" |
+            #     sed -n "s/'//p")
+            # echo $(node $DIR_SCRIPTS/ashdi.js "$playlist" "$VOICE" "$SEASON")
+            echo "$playlist"
         else
             echo "$playlist"
         fi
@@ -236,6 +274,12 @@ movie_get_quality_playlist() {
     echo $1 | wget -O- -i- --no-verbose --quiet > "$file_playlist"
 
     if [ "$domain" == "ashdi.vip" ] 
+    then
+        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" "$file_playlist" |
+        head -1
+    fi
+
+    if [ "$domain" == "zetvideo.net" ] 
     then
         grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" "$file_playlist" |
         head -1
@@ -303,7 +347,10 @@ get_remote_video_folder() {
 # Create files with segments list for wget and ffmpeg.
 # param 1 - m3u8 playlist url
 # param 2 - movie name
-# param 3 - 0/1 to use full video path from playlist
+# param 3 - 
+#  0 nothing,
+#  1 - to use full video path from playlist,
+#  2 - use playlist path for video segments.
 # param 4 - subtitles. [NAME]LINK,[NAME]LINK
 segments_create() {
     local playlist_url=$1
@@ -316,6 +363,9 @@ segments_create() {
     if [ -n "$3" ]; then
       if [ $3 -eq 1 ]; then
           USE_FULL_PATH=1
+      fi
+      if [ $3 -eq 2 ]; then
+          USE_FULL_PATH=2
       fi
     fi
 
