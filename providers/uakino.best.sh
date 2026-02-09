@@ -96,7 +96,7 @@ uakino_get_json_list() {
     choice=1;
 
     # Select the only voice available automatically.
-    if [ "1" -ne "${#TITLES[@]}" ]; then
+    if [ "1" -ne "${#TITLES[@]}" ] && [ "$AUTOVOICE" -eq 0 ]; then
         # Build the pattern (1|2|3|4|5)
         pattern=""
         for i in "${!TITLES[@]}"; do
@@ -238,11 +238,11 @@ init_segments_lists() {
         VIDEO_URI=$(movie_get_main_playlist $iframe_url)
         
         if [ -z "$VIDEO_URI" ]; then
-            echo "Playlist for selected quality not found. Try another."
+            echo "Playlist with qualities was not found."
             exit
         fi
 
-        echo "Playlist main = $VIDEO_URI"
+        debug_log "Playlist main = $VIDEO_URI"
 
         PLAYLIST=$(movie_get_quality_playlist $VIDEO_URI)
         
@@ -251,13 +251,13 @@ init_segments_lists() {
             exit
         fi
 
-        echo "Playlist quality = $PLAYLIST"
+        debug_log "Playlist quality = $PLAYLIST"
 
         # Get subtitles.
         SUBTITLES=$(movie_get_subtitles $iframe_url)
         MOVIENAME=$(uakino_get_filename_from_url $VIDEO_URI)
         FILENAME="$MOVIENAME.mp4"
-        echo "Movie filename = $FILENAME"
+        debug_log "Movie filename = $FILENAME"
         
         if [ "$DRY_RUN" == "0" ];
         then
@@ -267,6 +267,5 @@ init_segments_lists() {
                 segments_create $PLAYLIST $MOVIENAME 1 $SUBTITLES
             fi
         fi
-        echo "----------------------------------------------"
     done
 }

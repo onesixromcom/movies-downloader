@@ -7,12 +7,13 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.9.3"
+VERSION="0.9.4"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer" "kinoukr.tv" "uafix.net")
 PROVIDER_NAME=""
 # Quality: 480, 720, 1080 if available
-QUALITY="480"
+QUALITY="720"
+SUPPORTED_QUALITIES=("480" "720" "1080")
 # Specific season for show.
 SEASON=0
 # Set Audio track.
@@ -35,13 +36,14 @@ TOTAL="0"
 USE_FFMPEG_DOWNLOADER=0
 # Debug flag to save all downloaded files
 DEBUG="0"
+AUTOVOICE=0
 
 DIR_SCRIPTS="./scripts"
 # Temp files to store info.
 DIR_TMP="./tmp"
 # Variables files to store movies info.
 VARS_DIR="./vars"
-FILE_QUEUE="$VARS_DIR/queue.list"
+FILE_QUEUE=""
 FILE_FFMPEG_LIST="$VARS_DIR/list-ffmpeg.txt"
 # List of links to download with wget.
 FILE_WGET_LIST="$VARS_DIR/wget-src.list"
@@ -51,34 +53,25 @@ FILE_WGET_DEST="$VARS_DIR/wget-dest.list"
 FILE_COUNTER="$VARS_DIR/counter"
 FILE_VIDEO_NAME="$VARS_DIR/video-name"
 
-# Get url from first argument.
-args=("$@") 
-URL=${args[0]}
-unset args[0]
+# Url to process with provider
+URL=""
+# Array to store urls
+URLS=()
+
+# Search for url.
+for arg in "$@"; do
+    if [[ "$arg" =~ ^https?:// ]]; then
+        URL="$arg"
+        URLS+=("$arg")
+        break
+    fi
+done
+
+args=("$@")
 
 # Colors 
 CGreen='\033[0;32m'        # Green
 CN='\033[0m' # No Color
-
-# Check if link to page is present.
-if [ -z "$URL" ]; then
-    echo "No url supplied. Please set collection name. (ex: https://uaserials.pro/filmy/genre-action/some-movie.html)"
-    echo -e "Downloader works with websites: $CGreen ${SUPPORTER_PROVIDERS[*]} $CN"
-    printf 'You can use additional parameters: 
-\t--sound=N\tSet Audio track.
-\t--quality=N\tQuality: 480, 720, 1080 if available
-\t--dry-run\tWill create all files needed for queue download or check if movie is available for download in case of using ffmepg downloader.
-\t--output=PATH\tSet folder to download movie. Default is /home/$USER/Videos/movies
-\t--use-ffmpeg\tSwitch to ffmpeg downloader. Could be the issue when one of the segment goes timeout. Download will stuck and will be started from the start next run.
-\t--skip=N\tSkip first N videos from season.
-\t--total=N\tTotal videos to be downloaded if episodes are available.
-\t--playlist=1\tUseful for uakino.club when there are more than 1 season playlists.
-\t--clear\tClear previous downloads.
-'
-    echo -e "Params for $CGreen uaserials.pro: $CN";
-    printf '\t--season="1 сезон"\tSpecific season for show in text.'
-    exit
-fi
 
 for i in "${args[@]}"; do
   case "$i" in
@@ -93,6 +86,18 @@ for i in "${args[@]}"; do
       ;;
     --quality=*)
       QUALITY="${i#*=}"
+      found=false
+      for item in "${SUPPORTED_QUALITIES[@]}"; do
+          if [[ "$item" == "$QUALITY" ]]; then
+              found=true
+              break
+          fi
+      done
+
+      if ! $found; then
+          echo "Quality not found!"
+          exit
+      fi
       ;;
     --dry-run)
       DRY_RUN="1"
@@ -115,6 +120,14 @@ for i in "${args[@]}"; do
       # PLAYLIST_NUM="0_${i#*=}"
       PLAYLIST_NUM=${i#*=}
       ;;
+    --list=*)
+      FILE_QUEUE=${i#*=}
+      # Exit if file is not available.
+      if test ! -f "$FILE_QUEUE"; then
+        printf "* Error: List file is not available.*\n"
+        exit 1
+      fi
+      ;;
     --debug)
       DEBUG="1"
       ;;
@@ -127,18 +140,65 @@ for i in "${args[@]}"; do
       rm -rf $DIR_TMP/*.html
       rm -rf $OUTPUT_SEGMENTS/*
       ;;  
-    *)
-      printf "***************************\n"
-      printf "* Error: Invalid argument.*\n"
-      printf "***************************\n"
-      exit 1
+    # *)
+    #   printf "***************************\n"
+    #   printf "* Error: Invalid argument.*\n"
+    #   printf "***************************\n"
+    #   exit 1
   esac
   shift
 done
 
+
+# Check if link to page is present.
+if [ -z "$URL" ]; then
+  # Show message only if segemnts are not in the list.
+  if [ ! -f "$FILE_WGET_LIST" ] && [ -z "$FILE_QUEUE" ]; then
+    echo "No url supplied. Please set collection name. (ex: https://uaserials.pro/filmy/genre-action/some-movie.html)"
+    echo -e "Downloader works with websites: $CGreen ${SUPPORTER_PROVIDERS[*]} $CN"
+    printf 'You can use additional parameters: 
+\t--sound=N\tSet Audio track.
+\t--quality=N\tQuality: 480, 720, 1080 if available
+\t--dry-run\tWill create all files needed for queue download or check if movie is available for download in case of using ffmepg downloader.
+\t--output=PATH\tSet folder to download movie. Default is /home/$USER/Videos/movies
+\t--use-ffmpeg\tSwitch to ffmpeg downloader. Could be the issue when one of the segment goes timeout. Download will stuck and will be started from the start next run.
+\t--skip=N\tSkip first N videos from season.
+\t--total=N\tTotal videos to be downloaded if episodes are available.
+\t--playlist=1\tUseful for uakino.club when there are more than 1 season playlists.
+\t--list=/path/to/file\tTxt file movie link per line.
+\t--clear\tClear previous downloads.
+\n'
+    echo -e "Params for $CGreen uaserials.pro: $CN";
+    printf '\t--season="1 сезон"\tSpecific season for show in text.\n'
+    exit
+  fi
+fi
+
+# Create lists of urls.
+if [ ! -z "$FILE_QUEUE" ]; then
+    # Clear the array before loading
+    URLS=()
+    
+    # Read file line by line and add to array
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines and lines starting with #
+        if [ -n "$line" ] && [[ ! "$line" =~ ^[[:space:]]*# ]]; then
+            if [[ $line =~ $regex ]]; then
+                URLS+=("$line")
+            fi
+        fi
+    done < "$FILE_QUEUE"
+
+    AUTOVOICE=1
+fi
+
 # =================================================
 # ============== Helpers ==========================
 # =================================================
+
+reset_variables() {
+  DIR_TMP="./tmp"
+}
 
 # Check if provider from url is supported.
 check_supported_provider() {
@@ -273,35 +333,41 @@ movie_get_quality_playlist() {
 
     echo $1 | wget -O- -i- --no-verbose --quiet > "$file_playlist"
 
-    if [ "$domain" == "ashdi.vip" ] 
-    then
-        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" "$file_playlist" |
-        head -1
-    fi
+    # Find starting index
+    start_index=0
+    for i in "${!SUPPORTED_QUALITIES[@]}"; do
+        [[ "${SUPPORTED_QUALITIES[$i]}" == "$QUALITY" ]] && start_index=$i && break
+    done
 
-    if [ "$domain" == "zetvideo.net" ] 
-    then
-        grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8" "$file_playlist" |
-        head -1
-    fi
+    # Try from current quality downwards
+    for ((i=start_index; i>=0; i--)); do
+        quality="${SUPPORTED_QUALITIES[$i]}"
 
-    if [ "$domain" == "boogiemovie.online" ] 
-    then
-        
-        local PLAYLIST=$(
-            grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8" "$file_playlist"
-        )
-        # Could be empty because of non-standard quality. Using the lowest one.
-        if [ -z $PLAYLIST ]; then
-            QUALITY=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
-            PLAYLIST=$(
-                grep -E -o "^https://(.*)\/$QUALITY.mp4\/(.*)m3u8" "$file_playlist" |
-                head -1
-            )
+        if [ "$domain" == "ashdi.vip" ] 
+        then
+            url=$(grep -E -o "https://(.*)hls\/$quality\/(.*)m3u8" "$file_playlist")
         fi
 
-        echo $PLAYLIST
-    fi
+        if [ "$domain" == "zetvideo.net" ] 
+        then
+            url=$(grep -E -o "https://(.*)hls\/$quality\/(.*)m3u8" "$file_playlist")
+        fi
+
+        if [ "$domain" == "boogiemovie.online" ] 
+        then
+            url=$(grep -E -o "^https://(.*)\/$quality.mp4\/(.*)m3u8" "$file_playlist")
+            # Could be empty because of non-standard quality. Using the lowest one.
+            if [ -z $url ]; then
+                quality_low=$(echo $1 | sed 's/.*,\([0-9]\+\),.mp4.*/\1/')
+                url=$(grep -E -o "^https://(.*)\/$quality_low.mp4\/(.*)m3u8" "$file_playlist")
+            fi
+        fi
+
+        if [[ -n "$url" ]]; then
+            echo "$url"
+            break
+        fi
+    done
 
     echo ""
 } 
@@ -323,7 +389,7 @@ movie_get_subtitles() {
 
 # Show debug info.
 debug_log() {
-    if [ -z "$DEBUG" ]; then
+    if [ "0" -eq "$DEBUG" ]; then
         return
     fi
     TMP_VAR=$1
@@ -421,7 +487,7 @@ segments_create() {
         
         echo "$OUTPUT_MOVIE_SEGMENTS" >> $FILE_WGET_DEST
     done
-    echo "Saving lists files done."
+    debug_log "Saving lists files done."
 }
 
 # Download segments and create final movie file on success.
@@ -528,7 +594,7 @@ segments_download() {
               # If subtitle was downloaded convert it to srt
               # and add to the processing.
               if [ -f $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME ]; then
-                ffmpeg -y -hide_banner -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME -c:s subrip $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
+                ffmpeg -y -hide_banner -loglevel error -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME -c:s subrip $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt
                 FFMPEG_SUBTITLES="$FFMPEG_SUBTITLES -metadata:s:s:$i language=${names[i]} "
                 FFMPEG_INPUT="$FFMPEG_INPUT -i $MOVIE_FOLDER_SEGMENTS$SUBTITLE_NAME.srt "
                 FFMPEG_MAP="$FFMPEG_MAP -map $((i+1))"
@@ -546,15 +612,15 @@ segments_download() {
         fi
 
         # Create movie from the parts
-        ffmpeg -hide_banner -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -c:a copy $MOVIE_OUTPUT
+        ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -c:a copy $MOVIE_OUTPUT
 
         # Add chapters to the movie.
         echo "Adding chapters to the movie"
         # Extract meta info from the video.
-        ffmpeg -hide_banner -y -i $MOVIE_OUTPUT -f ffmetadata "$DIR_TMP-META"
+        ffmpeg -hide_banner -loglevel error -y -i $MOVIE_OUTPUT -f ffmetadata "$DIR_TMP-META"
         # Add chapters every 10 mins.
         ./scripts/auto-chapters.sh $MOVIE_OUTPUT "$DIR_TMP-META"
-        ffmpeg -hide_banner -y -i $MOVIE_OUTPUT -i "$DIR_TMP-META" -map_metadata 1 -codec copy "$MOVIE_OUTPUT-ch.mp4"
+        ffmpeg -hide_banner -loglevel error -y -i $MOVIE_OUTPUT -i "$DIR_TMP-META" -map_metadata 1 -codec copy "$MOVIE_OUTPUT-ch.mp4"
         if test -f "$MOVIE_OUTPUT-ch.mp4"; then
           rm $MOVIE_OUTPUT
           mv "$MOVIE_OUTPUT-ch.mp4" $MOVIE_OUTPUT
@@ -572,8 +638,8 @@ segments_download() {
     done
     
     segments_remove_tmp_files
-    echo "$PROGRAM_NAME finished."
-    exit
+    #echo "$PROGRAM_NAME finished."
+    #exit
 }
 
 segments_remove_tmp_files() {
@@ -602,27 +668,41 @@ curl_request() {
 
 #================== START ==================
 echo "$PROGRAM_NAME v.$VERSION is starting..."
-PROVIDER_NAME=$(get_host $URL)
-check_supported_provider
 
-# Loading provider's custom scripts
-. "$DIR/providers/$PROVIDER_NAME.sh"
+# Continue download segments if present
+if test -f "$FILE_WGET_LIST"; then
+  segments_download
+else
+  # Process all urls
+  for i in "${!URLS[@]}"; do
+    URL="${URLS[$i]}"
+    PROVIDER_NAME=$(get_host $URL)
+    check_supported_provider
+    echo "Downloading: $URL"
 
-segments_download
+    reset_variables
 
-echo "url $URL"
-echo "quality $QUALITY"
-echo "playlist $PLAYLIST_NUM"
-echo "season $SEASON"
-echo "sound $SOUND"
-echo "skip $SKIP"
-echo "total $TOTAL"
+    # Run each provider in a subshell
+    (
+      # Loading provider's custom scripts
+      . "$DIR/providers/$PROVIDER_NAME.sh"
 
-segments_remove_tmp_files
-echo "---------------------------------------"
-init_segments_lists
-echo "---------------------------------------"
-segments_download
+      debug_log "url $URL"
+      debug_log "quality $QUALITY"
+      debug_log "playlist $PLAYLIST_NUM"
+      debug_log "season $SEASON"
+      debug_log "sound $SOUND"
+      debug_log "skip $SKIP"
+      debug_log "total $TOTAL"
+
+      segments_remove_tmp_files
+      init_segments_lists
+    )
+
+    echo "---------------------------------------"
+    segments_download
+  done
+fi
 
 echo "$PROGRAM_NAME finished."
 

@@ -114,11 +114,11 @@ def process_SRT_file(input_file, output_file=None, drift_per_second=0.024):
         print(f"Drift correction: -{drift_per_second:.3f} seconds per second of runtime")
         
         # Show examples of correction at different times
-        print(f"\nDrift correction examples:")
+        # print(f"\nDrift correction examples:")
         for minutes in [1, 5, 10, 30, 60, 90]:
             seconds = minutes * 60
             correction = seconds * drift_per_second
-            print(f"  At {minutes:2d} min: -{correction:6.2f} seconds correction")
+            # print(f"  At {minutes:2d} min: -{correction:6.2f} seconds correction")
         
     except Exception as e:
         print(f"Error processing file: {e}")
