@@ -38,11 +38,13 @@ USE_FFMPEG_DOWNLOADER=0
 DEBUG="0"
 AUTOVOICE=0
 
+# Additional scripts folder
 DIR_SCRIPTS="./scripts"
 # Temp files to store info.
 DIR_TMP="./tmp"
 # Variables files to store movies info.
 VARS_DIR="./vars"
+# Use the list of movies urls to download.
 FILE_QUEUE=""
 FILE_FFMPEG_LIST="$VARS_DIR/list-ffmpeg.txt"
 # List of links to download with wget.
@@ -51,7 +53,6 @@ FILE_WGET_LIST="$VARS_DIR/wget-src.list"
 FILE_WGET_DEST="$VARS_DIR/wget-dest.list"
 # Store line counter
 FILE_COUNTER="$VARS_DIR/counter"
-FILE_VIDEO_NAME="$VARS_DIR/video-name"
 
 # Url to process with provider
 URL=""
@@ -425,6 +426,8 @@ segments_create() {
     USE_FULL_PATH=0
     MOVIE_SUBTITLES="$4"
 
+    # TODO: segments download should be based on domain.
+
     # todo: error here if param is string
     if [ -n "$3" ]; then
       if [ $3 -eq 1 ]; then
@@ -469,9 +472,11 @@ segments_create() {
     if [[ $playlist_url =~ ^file:// ]]; then
         LIST=$(curl $playlist_url | grep $PARSE_SEGMENTS )
     else
-      wget $playlist_url --output-document=pls.file --no-verbose
-      LIST=$(grep $PARSE_SEGMENTS pls.file)
-      rm pls.file
+      if test -f "$DIR_TMP-playlist.m3u8"; then
+        rm "$DIR_TMP-playlist.m3u8"
+      fi
+      wget $playlist_url --output-document="$DIR_TMP-playlist.m3u8" --no-verbose
+      LIST=$(grep $PARSE_SEGMENTS "$DIR_TMP-playlist.m3u8")
     fi
 
     for f in $LIST;
@@ -561,7 +566,7 @@ segments_download() {
             fi
         fi
         # Make progress status in one line.
-        echo -ne "Progress: $((i+1)) / $TOTAL_FILES \r"
+        echo -ne "Progress: $i / $((TOTAL_FILES-1)) \r"
         echo $i > $FILE_COUNTER
     done
     

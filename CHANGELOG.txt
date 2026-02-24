@@ -1,5 +1,12 @@
 CHANGELOG
 
+0.9.5
+- Fix uakino duplicated iframe download for blocked ips
+
+0.9.4
+- Lower quality will be downloaded if selected is not available
+- New --list option added to download movies in a queue
+
 0.9.3
 - Uaflix added (which is working with zetvideo movies provider)
 
