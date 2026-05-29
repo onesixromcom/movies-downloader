@@ -1,6 +1,6 @@
 var CryptoJS = require("crypto-js");
 
-var passphrase = '297796CCB81D2551';
+var passphrase = '297796CCB81D25512';
 
 CryptoJSAesDecrypt = function (passphrase, encrypted_json_string){
 	let obj_json = JSON.parse(encrypted_json_string);

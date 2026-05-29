@@ -39,22 +39,6 @@ uaserials_get_main_playlists() {
     echo $(node $DIR_TMP/uaserials_pro.js "$SEASON")
 }
 
-# Get playlist link from iframe.
-uaserials_get_main_playlist_in_iframe() {
-    echo $1 |
-    # sed  's/https://' | sed 's/\/\//https:\/\//' | 
-    wget -O- -i- --no-verbose --quiet | 
-    grep -E -o 'file: "(.*)m3u8' | 
-    sed -n 's/file: "//p'
-} 
-
-# Get quality playlist from main playlist.
-uaserials_com_get_quality_playlist() {
-    echo $1 |
-    wget -O- -i- --no-verbose --quiet | 
-    grep -E -o "https://(.*)hls\/$QUALITY\/(.*)m3u8"
-} 
-
 # Create filename from playlist url.
 # exmaple url https://sparrow.tortuga.wtf/hls/serials/solar.opposites.s01e08.adrianzp.mvo_45026/hls/index.m3u8
 uaserials_get_filename_from_url() {
@@ -125,28 +109,37 @@ init_segments_lists() {
 
     for SERVICE_IFRAME in "${PLAYER_IFRAMES[@]}";
     do
-        DOMAIN=$(extract_domain $SERVICE_IFRAME)
+        echo "IFRAME = $SERVICE_IFRAME"
 
-        local PLAYLIST_MAIN=$(uaserials_get_main_playlist_in_iframe $SERVICE_IFRAME)
- 
-        echo "playlist main = $PLAYLIST_MAIN"
-        PLAYLIST_QUALITY=$(uaserials_com_get_quality_playlist $PLAYLIST_MAIN)
-        debug_log "Playlist quality = $PLAYLIST_QUALITY"
-        if [ -z "$PLAYLIST_QUALITY" ]; then
+        # Get video uri.
+        VIDEO_URI=$(movie_get_main_playlist $SERVICE_IFRAME)
+
+        if [ -z "$VIDEO_URI" ]; then
+            echo "Playlist with qualities was not found."
+            exit
+        fi
+
+        debug_log "Playlist main = $VIDEO_URI"
+
+        PLAYLIST=$(movie_get_quality_playlist $VIDEO_URI)
+
+        if [ -z "$PLAYLIST" ]; then
             echo "Playlist for selected quality not found. Try another."
             exit
         fi
-        
-        MOVIENAME=$(uaserials_get_filename_from_url $PLAYLIST_MAIN)
+
+        debug_log "Playlist quality = $PLAYLIST"
+
+        MOVIENAME=$(uaserials_get_filename_from_url $VIDEO_URI)
         FILENAME="$MOVIENAME.mp4"
         debug_log "Filename: $FILENAME"
         
         if [ "$DRY_RUN" == "0" ];
         then
             if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
-                ffmpeg -i $PLAYLIST_QUALITY -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
+                ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
             else
-                segments_create $PLAYLIST_QUALITY $MOVIENAME 0
+                segments_create $PLAYLIST $MOVIENAME 0
             fi
         fi
         echo "----------------------------------------------"

@@ -1,5 +1,10 @@
 CHANGELOG
 
+0.9.6
+- uaserials.com tried to obfuscate js code to precent anyone from checking how do they decode stuff.
+    First crypto key was changed. Then tortuga also obfuscated their playlist data. But it was successfully 
+    decrypted.
+
 0.9.5
 - Fix uakino duplicated iframe download for blocked ips
 

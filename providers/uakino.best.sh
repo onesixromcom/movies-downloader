@@ -200,8 +200,7 @@ init_segments_lists() {
     # Try to load single video approach.
     if [ -z "$IFRAMES_LIST" ]; then
         echo "Trying approach with single movie download."
-        VIDEO_URL=$(uakino_get_single_iframe_video_url)
-        IFRAMES_LIST=($VIDEO_URL)
+        IFRAMES_LIST=($(uakino_get_single_iframe_video_url))
         debug_log $IFRAMES_LIST
     fi
 

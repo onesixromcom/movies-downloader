@@ -7,7 +7,7 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.9.4"
+VERSION="0.9.6"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer" "kinoukr.tv" "uafix.net")
 PROVIDER_NAME=""
@@ -32,8 +32,10 @@ PARSE_SEGMENTS="segment"
 SKIP=0
 # Set how many videos to download
 TOTAL="0"
-# Additional flag to enable FFmepeg downloader.
+# Additional flag to enable FFmpeg downloader.
 USE_FFMPEG_DOWNLOADER=0
+# Add chapters to the movie
+ADD_CHAPTERS=0
 # Debug flag to save all downloaded files
 DEBUG="0"
 AUTOVOICE=0
@@ -108,6 +110,9 @@ for i in "${args[@]}"; do
       ;;
     --use-ffmpeg)
       USE_FFMPEG_DOWNLOADER="1"
+      ;;
+    --add-chapters)
+      ADD_CHAPTERS=1
       ;;  
     --skip=*)
       SKIP="${i#*=}"
@@ -324,6 +329,15 @@ movie_get_main_playlist() {
         sed -n "s/manifest: '\(.*\)',/\1/p"
     fi
 
+    if [ "$domain" == "tortuga.tw" ] 
+    then
+      local  playlist=$(
+        grep -E -o "file: \"(.*)\"" "$file_iframe" |
+        sed -n "s/file: \"//p" |
+        sed -n "s/\"//p")
+      echo $(node $DIR_SCRIPTS/tortuga_decode.js "$playlist")
+    fi
+
     echo ""
 }
 
@@ -350,6 +364,11 @@ movie_get_quality_playlist() {
         fi
 
         if [ "$domain" == "zetvideo.net" ] 
+        then
+            url=$(grep -E -o "https://(.*)hls\/$quality\/(.*)m3u8" "$file_playlist")
+        fi
+
+        if [ "$domain" == "calypso.tortuga.tw" ] 
         then
             url=$(grep -E -o "https://(.*)hls\/$quality\/(.*)m3u8" "$file_playlist")
         fi
@@ -415,7 +434,7 @@ get_remote_video_folder() {
 # param 1 - m3u8 playlist url
 # param 2 - movie name
 # param 3 - 
-#  0 nothing,
+#  0 full segments urls already playlist,
 #  1 - to use full video path from playlist,
 #  2 - use playlist path for video segments.
 # param 4 - subtitles. [NAME]LINK,[NAME]LINK
@@ -426,8 +445,6 @@ segments_create() {
     USE_FULL_PATH=0
     MOVIE_SUBTITLES="$4"
 
-    # TODO: segments download should be based on domain.
-
     # todo: error here if param is string
     if [ -n "$3" ]; then
       if [ $3 -eq 1 ]; then
@@ -436,6 +453,16 @@ segments_create() {
       if [ $3 -eq 2 ]; then
           USE_FULL_PATH=2
       fi
+    fi
+
+    # Override playlist path settings for configured domains.
+    local domain=$(extract_domain $playlist_url)
+    if [ "$domain" == "zetvideo.net" ]; then
+      USE_FULL_PATH=0
+    fi
+
+    if [ "$domain" == "ashdi.vip" ]; then
+      USE_FULL_PATH=1
     fi
 
     echo "Creating segments for $MOVIE_NAME"
@@ -498,7 +525,7 @@ segments_create() {
 # Download segments and create final movie file on success.
 segments_download() {
     if test ! -f "$FILE_WGET_LIST"; then
-        echo "No previous segments found."
+        echo "No previous segments were found."
         return
     fi
     
@@ -522,7 +549,7 @@ segments_download() {
     KEY_HEX=""
     # Load headers if present
     if test -f "$FILE_HEADERS"; then
-      echo "Header file found!!"
+      debug_log "Header file found!!"
       curl_headers=$(cat "$FILE_HEADERS")
     fi
 
@@ -530,7 +557,7 @@ segments_download() {
       KEY_HEX=$(od -tx1 -An -N 16 "$FILE_KEY" | tr -d ' ')
     fi
 
-    for (( i=$(($COUNTER));i<$(($TOTAL_FILES));i++)); do
+    for (( i=$(($COUNTER));i<$(($TOTAL_FILES));i++ )); do
         DOWNLOADED_FILE=$(basename ${FILE_LIST[${i}]} | cut -d'?' -f1)
         DESTINATION_FOLDER=${FILE_DEST[${i}]}
 
@@ -552,7 +579,7 @@ segments_download() {
         if [ ! -z "${FILE_LIST[${i}]}" ]; then
             if test ! -f "${FILE_DEST[${i}]}/$DOWNLOADED_FILE"; then
                 # todo: restart script after some time.
-                echo "!! Error downloading segment. pls restart. !!"
+                echo "!! Error downloading segment. pls restart. !! ${FILE_LIST[${i}]}"
                 exit
             else
               # Videos could be encoded.
@@ -571,6 +598,7 @@ segments_download() {
     done
     
     echo "Download segments finished."
+
     # Get all movies vars files.
     MOVIES_LIST=$(find $VARS_DIR \( -name '*.vars' \) -type f -print | sort -R )
     for movie_vars in $MOVIES_LIST
@@ -620,15 +648,17 @@ segments_download() {
         ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 $FFMPEG_INPUT $FFMPEG_MAP $FFMPEG_SUBTITLES -c:v copy -c:a copy $MOVIE_OUTPUT
 
         # Add chapters to the movie.
-        echo "Adding chapters to the movie"
-        # Extract meta info from the video.
-        ffmpeg -hide_banner -loglevel error -y -i $MOVIE_OUTPUT -f ffmetadata "$DIR_TMP-META"
-        # Add chapters every 10 mins.
-        ./scripts/auto-chapters.sh $MOVIE_OUTPUT "$DIR_TMP-META"
-        ffmpeg -hide_banner -loglevel error -y -i $MOVIE_OUTPUT -i "$DIR_TMP-META" -map_metadata 1 -codec copy "$MOVIE_OUTPUT-ch.mp4"
-        if test -f "$MOVIE_OUTPUT-ch.mp4"; then
-          rm $MOVIE_OUTPUT
-          mv "$MOVIE_OUTPUT-ch.mp4" $MOVIE_OUTPUT
+        if [ "$ADD_CHAPTERS" -eq 1 ]; then
+          echo "Adding chapters to the movie"
+          # Extract meta info from the video.
+          ffmpeg -hide_banner -loglevel error -y -i $MOVIE_OUTPUT -f ffmetadata "$DIR_TMP-META"
+          # Add chapters every 10 mins.
+          ./scripts/auto-chapters.sh $MOVIE_OUTPUT "$DIR_TMP-META"
+          ffmpeg -hide_banner -loglevel error -y -i $MOVIE_OUTPUT -i "$DIR_TMP-META" -map_metadata 1 -codec copy "$MOVIE_OUTPUT-ch.mp4"
+          if test -f "$MOVIE_OUTPUT-ch.mp4"; then
+            rm $MOVIE_OUTPUT
+            mv "$MOVIE_OUTPUT-ch.mp4" $MOVIE_OUTPUT
+          fi
         fi
 
         rm -rf $MOVIE_FFMPEG
@@ -643,8 +673,6 @@ segments_download() {
     done
     
     segments_remove_tmp_files
-    #echo "$PROGRAM_NAME finished."
-    #exit
 }
 
 segments_remove_tmp_files() {
