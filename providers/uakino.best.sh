@@ -1,14 +1,4 @@
-#!/bin/bash
-
-# Since website is using Cloudflare protection we can't use
-# direct curl requests to the ajaxed urls.
-# Curl Impersonate porject should be used.
-# https://github.com/lwthiker/curl-impersonate
-# Install it to some folder and provide the path in CURLIMP variable
-
-CURL_ORIG="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl-impersonate-chrome -s"
-CURL_CHROME="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl_chrome116 -s"
-DIR_TMP="$DIR_TMP/uakino"
+#!/usr/local/env bash
 
 uakino_get_single_iframe_video_url() {
     cat "$DIR_TMP-main.html" |
@@ -17,17 +7,6 @@ uakino_get_single_iframe_video_url() {
     sed 's/geoblock=ua//p'
 } 
 
-uakino_get_list_id() {
-    echo $1 |
-    wget -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-    hxnormalize -x | 
-    sed -n 's/.*data-news_id="\([^"]\+\).*/\1/p'
-}
-
-uakino_download_movie_page() {
-    $CURL_CHROME "$1" |
-    hxnormalize -x > "$DIR_TMP-main.html"
-}
 
 uakino_get_list_id_locally() {
     cat "$DIR_TMP-main.html" |
@@ -134,7 +113,7 @@ uakino_get_json_list() {
     else
         ELEMENTS=$(cat "$DIR_TMP-playlist.php" |
             jq -r .response | # get value by response key
-            hxnormalize -x | # normalize html
+            hxnormalize -x |
             hxselect -i "div.playlists-videos li[data-id='0_$((choice-1))']"
         )
 
@@ -158,33 +137,25 @@ uakino_get_json_list2() {
     hxwls
 } 
 
-uakino_get_filename_from_url() {
+uakino_best_get_filename_from_url() {
     if [ "$SOUND" == "0" ]
     then
         echo $1 |
         sed 's/\/hls.*//' |  # remove text before hls
         sed 's#.*/##' # leave only last word
-        #https://s2.ashdi.vip/content/stream/serials/stranger_thing_s2/stranger_things__s02e09__chapter_nine._the_gate_65844/hls/
     else
         # Get the episode num first.
         EPISODE=$(echo $1 | sed 's/\/hls.*//' | sed 's#.*/##')
         NAME=$(echo $1 | sed "s/\/$EPISODE.*//" | sed 's#.*/##') 
         echo "$NAME"_"$EPISODE"
-        #https://s2.ashdi.vip/video/serials/love_death__robots_s1/1_61061/hls/
     fi
 }
 
-init_segments_lists() {
-    # Download the page.
-    uakino_download_movie_page $URL
+uakino_best_get_iframe_list() {
     # First approach is to load series by default.
     PLAYLIST_ID=$(uakino_get_list_id_locally)
     TIMESTAMP=$(uakino_get_timestamp_locally)
 
-    debug_log "Playlist ID = $PLAYLIST_ID"
-    debug_log "Timestamp = $TIMESTAMP"
-
-    IFRAMES_LIST=""
     # Get the lists with propmt.
     if [ ! -z "$PLAYLIST_ID" ]; then
         uakino_get_json_list $PLAYLIST_ID $TIMESTAMP
@@ -203,68 +174,4 @@ init_segments_lists() {
         IFRAMES_LIST=($(uakino_get_single_iframe_video_url))
         debug_log $IFRAMES_LIST
     fi
-
-    if [ -z "$IFRAMES_LIST" ]; then
-        echo "No iframes found. exit"
-        exit
-    fi
-    
-    TOTAL_ITEMS=(${#IFRAMES_LIST[@]})
-    debug_log "Total episodes before skip: $TOTAL_ITEMS"
-
-    # Removing first skipped videos.
-    if [ $SKIP -gt 0 ]; then
-        for (( i=0;i<$(($SKIP));i++)); do
-            #echo "skip ${IFRAMES_LIST[${i}]}"
-            unset IFRAMES_LIST[$i]
-        done
-    fi
-
-    # Unset video we dont want to download.
-    if [ $TOTAL -gt 0 ]; then
-        echo "Set total frames to: $TOTAL"
-        for (( i = $(($SKIP)) + $(($TOTAL)); i < (($TOTAL_ITEMS)); i++ )); do
-            #echo "unset ${IFRAMES_LIST[${i}]}"
-            unset IFRAMES_LIST[$i]
-        done
-    fi
-
-    for iframe_url in "${IFRAMES_LIST[@]}";
-    do
-        echo "IFRAME = $iframe_url"
-
-        # Get video uri.
-        VIDEO_URI=$(movie_get_main_playlist $iframe_url)
-        
-        if [ -z "$VIDEO_URI" ]; then
-            echo "Playlist with qualities was not found."
-            exit
-        fi
-
-        debug_log "Playlist main = $VIDEO_URI"
-
-        PLAYLIST=$(movie_get_quality_playlist $VIDEO_URI)
-        
-        if [ -z "$PLAYLIST" ]; then
-            echo "Playlist for selected quality not found. Try another."
-            exit
-        fi
-
-        debug_log "Playlist quality = $PLAYLIST"
-
-        # Get subtitles.
-        SUBTITLES=$(movie_get_subtitles $iframe_url)
-        MOVIENAME=$(uakino_get_filename_from_url $VIDEO_URI)
-        FILENAME="$MOVIENAME.mp4"
-        debug_log "Movie filename = $FILENAME"
-        
-        if [ "$DRY_RUN" == "0" ];
-        then
-            if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
-                ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
-            else
-                segments_create $PLAYLIST $MOVIENAME 1 $SUBTITLES
-            fi
-        fi
-    done
 }

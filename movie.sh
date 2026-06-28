@@ -7,10 +7,19 @@
 
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
-VERSION="0.9.6"
+# Since website is using Cloudflare protection we can't use
+# direct curl requests to the ajaxed urls.
+# Curl Impersonate porject should be used.
+# https://github.com/lwthiker/curl-impersonate
+# Install it to some folder and provide the path in CURLIMP variable
+CURL_ORIG="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl-impersonate-chrome -s"
+CURL_CHROME="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl_chrome116 -s"
+
+VERSION="0.9.7"
 PROGRAM_NAME="Universal Movies Downloader"
-SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "uaserial.top" "prmovies.beer" "kinoukr.tv" "uafix.net")
+SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "prmovies.beer" "kinoukr.tv" "uafix.net")
 PROVIDER_NAME=""
+PROVIDER_ALIAS=""
 # Quality: 480, 720, 1080 if available
 QUALITY="720"
 SUPPORTED_QUALITIES=("480" "720" "1080")
@@ -23,6 +32,8 @@ VOICE=0
 PLAYLIST_NUM=""
 # Will create all files needed for queue download or check if movie is available for download in case of using ffmpeg downloader.
 DRY_RUN="0"
+# To skip downloading (for tests)
+SKIP_DOWNLOAD=0
 # Set folder to download movie.
 OUTPUT="/home/$USER/Videos/movies/"
 OUTPUT_SEGMENTS=$OUTPUT
@@ -63,17 +74,20 @@ URLS=()
 
 # Search for url.
 for arg in "$@"; do
-    if [[ "$arg" =~ ^https?:// ]]; then
-        URL="$arg"
-        URLS+=("$arg")
-        break
-    fi
+  if [[ "$arg" =~ ^https?:// ]]; then
+      URL="$arg"
+      URLS+=("$arg")
+      break
+  fi
 done
 
 args=("$@")
 
 # Colors 
-CGreen='\033[0;32m'        # Green
+CRed='\033[0;31m'
+CGreen='\033[0;32m'
+CBlue='\033[0;34m'
+CPurple='\033[0;35m'
 CN='\033[0m' # No Color
 
 for i in "${args[@]}"; do
@@ -91,15 +105,15 @@ for i in "${args[@]}"; do
       QUALITY="${i#*=}"
       found=false
       for item in "${SUPPORTED_QUALITIES[@]}"; do
-          if [[ "$item" == "$QUALITY" ]]; then
-              found=true
-              break
-          fi
+        if [[ "$item" == "$QUALITY" ]]; then
+          found=true
+          break
+        fi
       done
 
       if ! $found; then
-          echo "Quality not found!"
-          exit
+        echo "Quality not found!"
+        exit
       fi
       ;;
     --dry-run)
@@ -133,6 +147,9 @@ for i in "${args[@]}"; do
         printf "* Error: List file is not available.*\n"
         exit 1
       fi
+      ;;
+    --skip-download)
+      SKIP_DOWNLOAD=1
       ;;
     --debug)
       DEBUG="1"
@@ -245,15 +262,98 @@ movie_download_main_page() {
       url="$1"
     fi
 
-    # echo "Download page $url"
-
     # Download the page.
     echo "$url" |
     wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
     hxnormalize -x > "$DIR_TMP-main.html"
 }
 
+# This function should fill $IFRAME_LIST array.
+movie_get_iframe_list() {
+    IFRAMES_LIST=()
+
+    FUNC="${PROVIDER_ALIAS}_get_iframe_list"
+    if declare -f "${FUNC}" > /dev/null 2>&1; then
+        "$FUNC"
+    fi
+
+    if [ -z "$IFRAMES_LIST" ]; then
+        echo "No iframes found. exit"
+        exit
+    fi
+     
+}
+
+# This function should fill $IFRAME_LIST array.
+movie_iframe_process() {
+    TOTAL_ITEMS=(${#IFRAMES_LIST[@]})
+    debug_log "Total episodes before skip: $TOTAL_ITEMS"
+
+    # Removing first skipped videos.
+    if [ $SKIP -gt 0 ]; then
+        for (( i=0;i<$(($SKIP));i++)); do
+            #echo "skip ${IFRAMES_LIST[${i}]}"
+            unset IFRAMES_LIST[$i]
+        done
+    fi
+
+    # Unset video we dont want to download.
+    if [ $TOTAL -gt 0 ]; then
+        echo "Set total frames to: $TOTAL"
+        for (( i = $(($SKIP)) + $(($TOTAL)); i < (($TOTAL_ITEMS)); i++ )); do
+            #echo "unset ${IFRAMES_LIST[${i}]}"
+            unset IFRAMES_LIST[$i]
+        done
+    fi
+
+    for iframe_url in "${IFRAMES_LIST[@]}";
+    do
+        echo "IFRAME = $iframe_url"
+
+        # Get video uri.
+        VIDEO_URI=$(movie_get_main_playlist $iframe_url)
+        
+        if [ -z "$VIDEO_URI" ]; then
+            echo "Playlist with qualities was not found."
+            exit
+        fi
+
+        debug_log "Playlist main = $VIDEO_URI"
+
+        PLAYLIST=$(movie_get_quality_playlist $VIDEO_URI)
+        
+        if [ -z "$PLAYLIST" ]; then
+            echo "Playlist for selected quality not found. Try another."
+            exit
+        fi
+
+        debug_log "Playlist quality = $PLAYLIST"
+
+        # Get subtitles.
+        SUBTITLES=$(movie_get_subtitles $iframe_url)
+        MOVIENAME=$(movie_get_filename_from_url $VIDEO_URI)
+        FILENAME="$MOVIENAME.mp4"
+        debug_log "Movie filename = $FILENAME"
+        
+        if [ "$DRY_RUN" == "0" ];
+        then
+            if [ "$USE_FFMPEG_DOWNLOADER" == "1" ]; then
+                ffmpeg -i $PLAYLIST -c copy -bsf:a aac_adtstoasc "$OUTPUT$FILENAME" -hide_banner -y
+            else
+                segments_create $PLAYLIST $MOVIENAME 1 $SUBTITLES
+            fi
+        fi
+    done
+}
+
 movie_get_filename_from_url() {
+    local url="$1"
+    FUNC="${PROVIDER_ALIAS}_get_filename_from_url"
+    if declare -f "${FUNC}" > /dev/null 2>&1; then
+        "$FUNC" "$1"
+        return
+    fi
+
     local domain=$(extract_domain $1)
 
     if [ "$domain" == "ashdi.vip" ]
@@ -269,22 +369,36 @@ movie_get_filename_from_url() {
         sed 's/\/hls.*//' |  # remove text before hls
         sed 's#.*/##' # leave only last word
     fi
+
+    if [ "$domain" == "calypso.tortuga.tw" ]
+    then
+        echo $1 |
+        sed 's/\/hls\/index.*//' |  # remove text after hls/index
+        sed 's#.*/##' # leave only last word
+    fi
 }
 
 # $1 is the iframe url
 # $2 filename if it was already downloaded
 movie_get_main_playlist() {
+    FUNC="${PROVIDER_ALIAS}_get_main_playlist"
+    if declare -f "${FUNC}" > /dev/null 2>&1; then
+        "$FUNC" "$1" "$2"
+        return
+    fi
+
     local domain=$(extract_domain $1)
     local file_iframe=""
     if [ ! -z "$2" ];then
-      file_iframe=$2
+        file_iframe=$2
     else
-      file_iframe=$(get_temp_iframe_filename $1)
-      # Save to file for debug.
-      echo $1 |
-      sed  's/https://' | sed 's/\/\//https:\/\//' |
-      wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
-      hxnormalize -x > "$file_iframe"
+        file_iframe=$(get_temp_iframe_filename $1)
+        # Save to file for debug. 
+        local iframe_url=$(echo $1 | sed  's/https://' | sed 's/\/\//https:\/\//')
+        
+        $CURL_CHROME -s -L --retry 5 --retry-connrefused --connect-timeout 15 --max-time 20 "$iframe_url" \
+            -H "referer: https://$PROVIDER_NAME/" |
+            hxnormalize -x > "$file_iframe"
     fi
 
     # TODO: we can have voices and series selectors here.
@@ -430,6 +544,18 @@ get_remote_video_folder() {
     sed -n 's/index.m3u8//p'
 }
 
+# Initial function to get the playlist with segments urls.
+segments_init() {
+    # Download the page.
+    movie_download_main_page
+
+    # Get ifames list
+    movie_get_iframe_list
+
+    # Download videos from the list of iframes
+    movie_iframe_process
+}
+
 # Create files with segments list for wget and ffmpeg.
 # param 1 - m3u8 playlist url
 # param 2 - movie name
@@ -446,19 +572,20 @@ segments_create() {
     MOVIE_SUBTITLES="$4"
 
     # todo: error here if param is string
-    if [ -n "$3" ]; then
-      if [ $3 -eq 1 ]; then
-          USE_FULL_PATH=1
-      fi
-      if [ $3 -eq 2 ]; then
-          USE_FULL_PATH=2
-      fi
-    fi
+    # if [ -n "$3" ]; then
+    #   if [ $3 -eq 1 ]; then
+    #       USE_FULL_PATH=1
+    #   fi
+    #   if [ $3 -eq 2 ]; then
+    #       USE_FULL_PATH=2
+    #   fi
+    # fi
 
+    # TODO: check if fullpath should be used.
     # Override playlist path settings for configured domains.
     local domain=$(extract_domain $playlist_url)
     if [ "$domain" == "zetvideo.net" ]; then
-      USE_FULL_PATH=0
+      USE_FULL_PATH=1
     fi
 
     if [ "$domain" == "ashdi.vip" ]; then
@@ -506,6 +633,8 @@ segments_create() {
       LIST=$(grep $PARSE_SEGMENTS "$DIR_TMP-playlist.m3u8")
     fi
 
+    debug_log "Using full path for playlist: $USE_FULL_PATH"
+
     for f in $LIST;
     do
         if [ $USE_FULL_PATH -eq 1 ]; then
@@ -524,6 +653,10 @@ segments_create() {
 
 # Download segments and create final movie file on success.
 segments_download() {
+    if [ "$SKIP_DOWNLOAD" -eq 1 ]; then
+        return;
+    fi
+
     if test ! -f "$FILE_WGET_LIST"; then
         echo "No previous segments were found."
         return
@@ -604,7 +737,9 @@ segments_download() {
     for movie_vars in $MOVIES_LIST
     do
         # Load variables per movie
-        . "$movie_vars"
+        source "$movie_vars"
+
+        # TODO: check if all segments were downloaded.
 
         FFMPEG_INPUT="-i $MOVIE_FFMPEG "
         FFMPEG_MAP=" -map 0 "
@@ -699,26 +834,22 @@ curl_request() {
   eval "$cmd"
 }
 
-#================== START ==================
-echo "$PROGRAM_NAME v.$VERSION is starting..."
-
-# Continue download segments if present
-if test -f "$FILE_WGET_LIST"; then
-  segments_download
-else
+movie_process_urls() {
   # Process all urls
   for i in "${!URLS[@]}"; do
     URL="${URLS[$i]}"
     PROVIDER_NAME=$(get_host $URL)
+    PROVIDER_ALIAS="${PROVIDER_NAME//./_}"
     check_supported_provider
     echo "Downloading: $URL"
 
-    reset_variables
+    #reset_variables
+    DIR_TMP="./tmp/${PROVIDER_ALIAS}-"
 
     # Run each provider in a subshell
     (
       # Loading provider's custom scripts
-      . "$DIR/providers/$PROVIDER_NAME.sh"
+      source "$DIR/providers/$PROVIDER_NAME.sh"
 
       debug_log "url $URL"
       debug_log "quality $QUALITY"
@@ -729,12 +860,26 @@ else
       debug_log "total $TOTAL"
 
       segments_remove_tmp_files
-      init_segments_lists
+      segments_init
     )
 
     echo "---------------------------------------"
     segments_download
   done
+}
+
+#================== START ==================
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    return
+fi
+
+echo "$PROGRAM_NAME v.$VERSION is starting..."
+
+# Continue download segments if present
+if test -f "$FILE_WGET_LIST"; then
+    segments_download
+else
+    movie_process_urls
 fi
 
 echo "$PROGRAM_NAME finished."

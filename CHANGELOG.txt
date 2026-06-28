@@ -1,7 +1,13 @@
 CHANGELOG
 
+0.9.7
+- uaserial.top is down
+- changed the flow from init_segments_lists function in the each provider to hooks.
+- tests added. finally.
+- uaserials.com again changed their passphrase for crypto.
+
 0.9.6
-- uaserials.com tried to obfuscate js code to precent anyone from checking how do they decode stuff.
+- uaserials.com tried to obfuscate js code to prevent anyone from checking how do they decode stuff.
     First crypto key was changed. Then tortuga also obfuscated their playlist data. But it was successfully 
     decrypted.
 
