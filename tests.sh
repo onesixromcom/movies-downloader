@@ -3,12 +3,11 @@
 # Tests for Universal Movie downloader to check
 # if everything is working after after some time.
 
-# Colors 
-CRed='\033[0;31m'
-CGreen='\033[0;32m'
-CBlue='\033[0;34m'
-CPurple='\033[0;35m'
-CN='\033[0m' # No Color
+source helpers.sh
+
+rm -rf ./tmp/*
+
+SUCCESS_FLAG=1
 
 test_file_is_present() {
     local filepath=$1

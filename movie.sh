@@ -5,6 +5,8 @@
 # Install before use:
 # sudo apt install html-xml-utils wget ffmpeg jq curl openssl python3
 
+source helpers.sh
+
 DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
 # Since website is using Cloudflare protection we can't use
@@ -82,13 +84,6 @@ for arg in "$@"; do
 done
 
 args=("$@")
-
-# Colors 
-CRed='\033[0;31m'
-CGreen='\033[0;32m'
-CBlue='\033[0;34m'
-CPurple='\033[0;35m'
-CN='\033[0m' # No Color
 
 for i in "${args[@]}"; do
   case "$i" in
@@ -219,10 +214,6 @@ fi
 # ============== Helpers ==========================
 # =================================================
 
-reset_variables() {
-  DIR_TMP="./tmp"
-}
-
 # Check if provider from url is supported.
 check_supported_provider() {
     if [[ ! " ${SUPPORTER_PROVIDERS[@]} " =~ " $PROVIDER_NAME " ]]; then
@@ -231,22 +222,6 @@ check_supported_provider() {
         for p in ${SUPPORTER_PROVIDERS[@]}; do echo $p; done;
         exit 1;
     fi
-}
-
-# Get host from URL.
-get_host() {
-    echo $1 |
-    awk -F[/:] '{print $4}'
-}
-
-# Extract domain from URL
-extract_domain() {
-    local url="$1"
-    # Remove protocol (http://, https://, etc.)
-    local domain=$(echo "$url" | sed -E 's#^(https?:)?//([^/]+).*#\2#')
-    # Remove port number if present
-    domain=$(echo "$domain" | sed -E 's#(.+):[0-9]+$#\1#')
-    echo "$domain"
 }
 
 get_temp_iframe_filename() {
@@ -843,7 +818,6 @@ movie_process_urls() {
     check_supported_provider
     echo "Downloading: $URL"
 
-    #reset_variables
     DIR_TMP="./tmp/${PROVIDER_ALIAS}-"
 
     # Run each provider in a subshell
