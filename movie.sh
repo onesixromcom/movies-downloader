@@ -238,8 +238,19 @@ movie_download_main_page() {
     fi
 
     # Download the page.
-    echo "$url" |
-    wget -q -O- -i- --continue --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --no-verbose -t 5 | 
+    $CURL_ORIG \
+        --http2 --compressed \
+        -H 'sec-ch-ua: "Chromium";v="104", " Not A;Brand";v="99", "Google Chrome";v="104"' \
+        -H 'sec-ch-ua-mobile: ?0' \
+        -H 'sec-ch-ua-platform: "Windows"' \
+        -H 'Upgrade-Insecure-Requests: 1' \
+        -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36' \
+        -H 'Accept: application/json, text/javascript, */*; q=0.01' \
+        -H 'Accept-Encoding: gzip, deflate, br' \
+        -H 'Accept-Language: en-US,en;q=0.9' \
+        --tlsv1.2 --no-npn --alps \
+        --cert-compression brotli \
+    "$url" |
     hxnormalize -x > "$DIR_TMP-main.html"
 }
 

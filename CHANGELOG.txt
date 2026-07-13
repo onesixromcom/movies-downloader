@@ -5,6 +5,7 @@ CHANGELOG
 - changed the flow from init_segments_lists function in the each provider to hooks.
 - tests added. finally.
 - uaserials.com again changed their passphrase for crypto.
+- fix main page download as anon browser
 
 0.9.6
 - uaserials.com tried to obfuscate js code to prevent anyone from checking how do they decode stuff.
