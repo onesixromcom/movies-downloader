@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MovDow" parent="@android:style/Theme.Material.Light.NoActionBar" />
+
+    <!-- Shown while the app starts, MainActivity switches to Theme.MovDow. -->
+    <style name="Theme.MovDow.Starting">
+        <item name="android:windowBackground">@drawable/splash_screen</item>
+    </style>
+</resources>

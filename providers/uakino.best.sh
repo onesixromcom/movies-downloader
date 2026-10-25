@@ -7,7 +7,6 @@ uakino_get_single_iframe_video_url() {
     sed 's/geoblock=ua//p'
 } 
 
-
 uakino_get_list_id_locally() {
     cat "$DIR_TMP-main.html" |
     sed -n 's/.*data-news_id="\([^"]\+\).*/\1/p'

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/local/env bash
 
 # Universal movies dowloader.
 
@@ -11,13 +11,13 @@ DIR=$(dirname $(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null||echo $0))
 
 # Since website is using Cloudflare protection we can't use
 # direct curl requests to the ajaxed urls.
-# Curl Impersonate porject should be used.
+# Curl Impersonate project should be used.
 # https://github.com/lwthiker/curl-impersonate
 # Install it to some folder and provide the path in CURLIMP variable
 CURL_ORIG="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl-impersonate-chrome -s"
 CURL_CHROME="/opt/curl-impersonate-v0.6.1.x86_64-linux-gnu/curl_chrome116 -s"
 
-VERSION="0.9.7"
+VERSION="1.0.0"
 PROGRAM_NAME="Universal Movies Downloader"
 SUPPORTER_PROVIDERS=("uaserials.com" "uakino.best" "prmovies.beer" "kinoukr.tv" "uafix.net")
 PROVIDER_NAME=""
@@ -267,7 +267,6 @@ movie_get_iframe_list() {
         echo "No iframes found. exit"
         exit
     fi
-     
 }
 
 # This function should fill $IFRAME_LIST array.
