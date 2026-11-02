@@ -13,7 +13,7 @@ android {
         // 26: MediaMuxer(FileDescriptor) to write mp4 into the chosen folder.
         minSdk = 26
         targetSdk = 35
-        versionName = "1.1.0"
+        versionName = "1.2.0"
         // 1.2.3 -> 10203
         versionCode = versionName!!.split(".").fold(0) { code, part -> code * 100 + part.toInt() }
         base.archivesName = "$applicationId-v.$versionName"
