@@ -13,7 +13,7 @@ android {
         // 26: MediaMuxer(FileDescriptor) to write mp4 into the chosen folder.
         minSdk = 26
         targetSdk = 35
-        versionName = "1.0.0"
+        versionName = "1.1.0"
         // 1.2.3 -> 10203
         versionCode = versionName!!.split(".").fold(0) { code, part -> code * 100 + part.toInt() }
         base.archivesName = "$applicationId-v.$versionName"
@@ -35,6 +35,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Dev build installs side by side with the release app and uses the DEV Google OAuth client
+            // (Android client registered for com.onesixrom.detectivequest.dev + debug keystore SHA-1).
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "MovDow Dev")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

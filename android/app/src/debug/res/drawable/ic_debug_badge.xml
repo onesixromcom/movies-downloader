@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "DEV" ribbon over the launcher icon, debug builds only. 108dp adaptive-icon canvas;
+     the letters stay inside the 66dp safe zone so no launcher mask crops them. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ribbon: spans the full width, the launcher mask trims its ends -->
+    <path
+        android:fillColor="#E6DC2626"
+        android:pathData="M0,65 H108 V81 H0 Z" />
+
+    <!-- D -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M41.5,69.5 H44 A3.5,3.5 0 0 1 47.5,73 A3.5,3.5 0 0 1 44,76.5 H41.5 Z" />
+
+    <!-- E -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M56,69.5 H51 V76.5 H56 M51,73 H55" />
+
+    <!-- V -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M59.5,69.5 L63,76.5 L66.5,69.5" />
+</vector>

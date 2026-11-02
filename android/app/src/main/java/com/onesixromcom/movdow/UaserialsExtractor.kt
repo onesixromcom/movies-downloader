@@ -18,7 +18,12 @@ class UaserialsExtractor(browser: BrowserFetcher, log: (String) -> Unit = {}) : 
 
     override suspend fun getPage(pageUrl: String): PageInfo {
         val html = browser.loadPage(pageUrl) { it.contains("data-tag1") || it.contains("short-title") }
-        val doc = Jsoup.parse(html, pageUrl)
+        var doc = Jsoup.parse(html, pageUrl)
+        // The player script replaces <player-control> in the live DOM, so read the HTML as the server sent it.
+        if (doc.selectFirst("player-control[data-tag1]") == null) {
+            step("Player data is not in the rendered page, loading the original HTML…")
+            doc = Jsoup.parse(browser.fetch(pageUrl), pageUrl)
+        }
         val title = doc.selectFirst("h1.short-title")?.text()?.trim()?.ifEmpty { null } ?: doc.title()
         val origin = siteOrigin(pageUrl)
         val tag1 = doc.selectFirst("player-control[data-tag1]")?.attr("data-tag1")

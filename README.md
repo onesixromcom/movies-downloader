@@ -40,6 +40,14 @@ OPTIONS:
 
 ## Android app: MovDow
 
+MovDow brings the same idea to the phone: download movies and series from Ukrainian streaming websites in the quality you choose,
+then watch them without ads and without internet — on the phone, or on TV from a USB drive.
+Like the script, it was made for the times when russian attacks leave us without electricity and internet.
+
+Share a movie page from the browser to MovDow (or paste its URL), pick the voice, the quality and the episodes, and the app downloads them
+in the background into the folder you chose, as ready-to-play `.mp4` files. No PC, Termux or ffmpeg needed.
+Downloaded parts are kept, so a paused download, or one interrupted by an app restart, continues where it stopped.
+
 The `android/` folder contains **MovDow**, a Kotlin app (package `com.onesixromcom.movdow`). Supported websites: **uakino.best**, **kinoukr.tv**, **uafix.net**, **uaserials.com**.
 Players: ashdi.vip, zetvideo.net, tortuga.tw (single videos and series playlists with voices and seasons).
 

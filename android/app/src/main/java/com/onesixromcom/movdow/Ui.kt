@@ -68,6 +68,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 
 const val TAB_ADD = 0
 const val TAB_QUEUE = 1
@@ -522,6 +524,7 @@ private fun AboutTab() {
     ) {
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
         version?.let { Text("Version $it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        UpdateCheck(version, open)
         Text(
             "Downloads movies and series from free streaming websites to watch them later without ads, " +
                 "for example on a TV from a USB drive.",
@@ -545,6 +548,50 @@ private fun AboutTab() {
                 Text(site.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+private sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val release: Release) : UpdateState
+    data class Failed(val error: String) : UpdateState
+}
+
+@Composable
+private fun UpdateCheck(version: String?, open: (String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<UpdateState>(UpdateState.Idle) }
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedButton(
+            enabled = state != UpdateState.Checking,
+            onClick = {
+                state = UpdateState.Checking
+                scope.launch {
+                    state = try {
+                        val release = UpdateChecker.latest()
+                        if (UpdateChecker.isNewer(release.version, version ?: "0")) UpdateState.Available(release)
+                        else UpdateState.UpToDate
+                    } catch (e: Exception) {
+                        AppLog.i("Update check failed: $e")
+                        UpdateState.Failed(e.message ?: e.toString())
+                    }
+                }
+            },
+        ) { Text("Check for updates") }
+        if (state == UpdateState.Checking) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+    }
+    when (val s = state) {
+        UpdateState.UpToDate -> Text("You have the latest version.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        is UpdateState.Available -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("New version ${s.release.version} is available.")
+            s.release.apkUrl?.let { apk -> Link("Download apk", onClick = { open(apk) }) }
+            Link("Release notes", onClick = { open(s.release.pageUrl) })
+        }
+        is UpdateState.Failed -> Text("Can't check for updates: ${s.error}", color = MaterialTheme.colorScheme.error)
+        else -> Unit
     }
 }
 

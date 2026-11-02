@@ -1,5 +1,9 @@
 CHANGELOG
 
+1.2.0
+- uaserials.com download fixed in cli and app.
+- update checker added to app.
+
 1.0.0
 - MovDow Android app (android/ folder): uakino.best, kinoukr.tv, uafix.net, uaserials.com, download queue, audio fix.
 - Signed APK is built by GitHub Actions and attached to the release.
