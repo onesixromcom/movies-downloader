@@ -1,4 +1,4 @@
-#!/usr/local/env bash
+#!/usr/bin/env bash
 
 uafix_get_iframes() {
     cat "$1" |

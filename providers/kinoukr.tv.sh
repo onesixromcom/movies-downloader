@@ -1,4 +1,4 @@
-#!/usr/local/env bash
+#!/usr/bin/env bash
 
 kinoukr_get_single_iframe() {
     cat "$DIR_TMP-main.html" |

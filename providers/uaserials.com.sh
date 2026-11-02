@@ -1,4 +1,4 @@
-#!/usr/local/env bash
+#!/usr/bin/env bash
 
 # New version of the websites uses now js object format and PlayerJS to handle all data.
 # 1. First we need to get iframe url.

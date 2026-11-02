@@ -1,4 +1,4 @@
-#!/usr/local/env bash
+#!/usr/bin/env bash
 
 # Universal movies dowloader.
 
@@ -358,7 +358,7 @@ movie_get_filename_from_url() {
     if [ "$domain" == "calypso.tortuga.tw" ]
     then
         echo $1 |
-        sed 's/\/hls\/index.*//' |  # remove text after hls/index
+        sed -E 's#/(hls/)?index\.m3u8.*##' |  # remove text after hls/index or index
         sed 's#.*/##' # leave only last word
     fi
 }
@@ -467,9 +467,14 @@ movie_get_quality_playlist() {
             url=$(grep -E -o "https://(.*)hls\/$quality\/(.*)m3u8" "$file_playlist")
         fi
 
-        if [ "$domain" == "calypso.tortuga.tw" ] 
+        if [ "$domain" == "calypso.tortuga.tw" ]
         then
             url=$(grep -E -o "https://(.*)hls\/$quality\/(.*)m3u8" "$file_playlist")
+            # New playlists have relative uris without quality in path, use RESOLUTION tag.
+            if [ -z "$url" ]; then
+                local variant=$(m3u8_variant_by_resolution "$file_playlist" "$quality")
+                [ -n "$variant" ] && url=$(url_resolve "$1" "$variant")
+            fi
         fi
 
         if [ "$domain" == "boogiemovie.online" ] 

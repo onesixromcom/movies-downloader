@@ -1,4 +1,4 @@
-#!/usr/local/env bash
+#!/usr/bin/env bash
 
 uakino_get_single_iframe_video_url() {
     cat "$DIR_TMP-main.html" |

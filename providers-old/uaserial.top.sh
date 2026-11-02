@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/local/env bash
 
 # This provider has a separate iframe with voices selector for every episode.
 # Script is working only with --use-ffmpeg flag since playlist has no absolute urls to the videos.
