@@ -95,3 +95,7 @@ Downloads run in a foreground service with a progress notification, so they cont
 **About** tab: app version, link to the home page and the list of supported websites.
 
 A log panel at the bottom of every tab shows what's going on (page loading, playlists, segments progress, audio fix, saved files). **Copy** copies the whole log.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 or later. See [LICENSE](LICENSE).

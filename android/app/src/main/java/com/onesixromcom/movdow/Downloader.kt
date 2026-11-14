@@ -22,6 +22,12 @@ import kotlin.coroutines.coroutineContext
  */
 class Downloader(private val context: Context) {
 
+    private companion object {
+        /** Kept free on top of the estimate: the estimate is rough and the phone needs some space too. */
+        const val SPACE_RESERVE = 100L * 1024 * 1024
+        const val AAC_BYTES_PER_SECOND = 128_000L / 8
+    }
+
     private val userAgent = WebSettings.getDefaultUserAgent(context)
 
     suspend fun download(item: DownloadItem, onProgress: (done: Int, total: Int, stage: String?) -> Unit): Unit =
@@ -40,13 +46,24 @@ class Downloader(private val context: Context) {
             if (muxed.exists() || joined.exists()) {
                 AppLog.i("Segments are already joined")
             } else {
-                val existing = (0 until total).count { segmentFile(dir, it).exists() }
+                val existingFiles = (0 until total).map { segmentFile(dir, it) }.filter { it.exists() }
+                val existing = existingFiles.size
                 if (existing > 0) AppLog.i("Resuming: $existing / $total segments already downloaded")
+                // Size of the whole video is unknown until segments come in: estimate it from the average segment.
+                var knownCount = existing
+                var knownBytes = existingFiles.sumOf { it.length() }
                 val logStep = maxOf(1, total / 10)
                 playlist.segments.forEachIndexed { i, url ->
                     ensureActive()
                     val file = segmentFile(dir, i)
-                    if (!file.exists()) downloadSegment(url, playlist.playerUrl, file)
+                    if (!file.exists()) {
+                        val remaining = total - knownCount
+                        val estimate = if (knownCount > 0) knownBytes / knownCount * remaining else 0L
+                        requireSpace(dir, estimate, "downloading")
+                        downloadSegment(url, playlist.playerUrl, file)
+                        knownCount++
+                        knownBytes += file.length()
+                    }
                     onProgress(i + 1, total, null)
                     if ((i + 1) % logStep == 0 && i + 1 < total) AppLog.i("${item.title}: ${(i + 1) * 100 / total}% (${i + 1} / $total)")
                 }
@@ -54,6 +71,8 @@ class Downloader(private val context: Context) {
 
                 onProgress(total, total, "Joining segments…")
                 val part = File(dir, "joined.part")
+                part.delete() // left from an interrupted join
+                requireSpace(dir, (0 until total).sumOf { segmentFile(dir, it).length() }, "joining segments")
                 part.outputStream().use { out ->
                     for (i in 0 until total) {
                         ensureActive()
@@ -67,7 +86,7 @@ class Downloader(private val context: Context) {
             if (!muxed.exists()) {
                 val duration = formatTime(playlist.durationUs)
                 onProgress(total, total, if (item.fixAudio) "Fixing audio…" else "Converting to mp4…")
-                if (!remux(joined, muxed, dir, item.fixAudio) { position ->
+                if (!remux(joined, muxed, dir, item.fixAudio, playlist.durationUs) { position ->
                         onProgress(total, total, "Fixing audio… ${formatTime(position)} / $duration")
                     }
                 ) {
@@ -114,10 +133,22 @@ class Downloader(private val context: Context) {
     /**
      * joined.ts -> mp4 in the temp folder. Fallbacks: audio fix -> plain remux -> false (keep .ts).
      */
-    private suspend fun remux(input: File, output: File, workDir: File, fixAudio: Boolean, onAudioProgress: (Long) -> Unit): Boolean {
+    private suspend fun remux(
+        input: File,
+        output: File,
+        workDir: File,
+        fixAudio: Boolean,
+        durationUs: Long,
+        onAudioProgress: (Long) -> Unit,
+    ): Boolean {
         val part = File(workDir, "muxed.part")
         val attempts = if (fixAudio) listOf(true, false) else listOf(false)
         for (audio in attempts) {
+            // mp4 is about the size of the .ts; the audio fix also keeps a temp AAC file (128 kbps).
+            // Outside try: no space is an error, not a reason to fall back.
+            part.delete()
+            val audioBytes = if (audio) durationUs / 1_000_000 * AAC_BYTES_PER_SECOND else 0L
+            requireSpace(workDir, input.length() + audioBytes, if (audio) "fixing audio" else "converting to mp4")
             try {
                 AppLog.i(if (audio) "Converting to mp4, re-encoding audio (AAC 128 kbps)…" else "Converting to mp4 (copy)…")
                 Remuxer(fixAudio = audio, onAudioProgress = onAudioProgress).remux(input, part, workDir)
@@ -140,6 +171,17 @@ class Downloader(private val context: Context) {
         context.contentResolver.openOutputStream(ts.uri)!!.use { out -> joined.inputStream().use { it.copyTo(out) } }
         AppLog.i("Saved $name.ts (${joined.length() / (1024 * 1024)} MB)")
     }
+
+    /** Throws if the storage of [dir] has less than [bytes] (+ a reserve) free. */
+    private fun requireSpace(dir: File, bytes: Long, operation: String) {
+        val needed = bytes + SPACE_RESERVE
+        val available = dir.usableSpace
+        if (available < needed) {
+            throw IOException("Not enough free space for $operation: need ${formatSize(needed)}, available ${formatSize(available)}")
+        }
+    }
+
+    private fun formatSize(bytes: Long): String = "%.1f GB".format(bytes / (1024.0 * 1024 * 1024))
 
     private fun formatTime(us: Long): String {
         val seconds = us / 1_000_000
