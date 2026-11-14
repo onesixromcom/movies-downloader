@@ -2,7 +2,7 @@ CHANGELOG
 
 1.3.0
 - check storage space when processing actions
-
+- single instance of the app
 
 1.2.0
 - uaserials.com download fixed in cli and app.

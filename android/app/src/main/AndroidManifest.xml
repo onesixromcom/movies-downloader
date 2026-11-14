@@ -13,12 +13,14 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.MovDow.Starting">
 
-        <!-- configChanges: keep the WebView and the parsed page on rotation. -->
+        <!-- configChanges: keep the WebView and the parsed page on rotation.
+             singleTask: a share from another app reuses the one running instance
+             (delivered via onNewIntent) instead of stacking a new one into the sender's task. -->
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
