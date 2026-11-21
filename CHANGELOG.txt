@@ -1,5 +1,8 @@
 CHANGELOG
 
+1.4.1
+- range slider to select episdes
+
 1.4.0
 - display episodes selector in columns
 - Clear completed buttons added

@@ -55,6 +55,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -95,6 +96,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 const val TAB_ADD = 0
 const val TAB_QUEUE = 1
@@ -113,6 +115,8 @@ class AddState {
     var voiceIndex by mutableStateOf<Int?>(null)
         private set
     var selected by mutableStateOf(setOf<Int>())
+    /** Episode indices between the range slider's thumbs. */
+    var range by mutableStateOf(0..0)
     var quality by mutableStateOf("720")
 
     val voice: Voice? get() = voiceIndex?.let { page?.voices?.getOrNull(it) }
@@ -120,7 +124,9 @@ class AddState {
     /** All episodes of the voice are selected by default. */
     fun selectVoice(index: Int?) {
         voiceIndex = index
+        val episodes = voice?.episodes?.indices ?: 0..0
         selected = voice?.episodes?.indices?.toSet() ?: emptySet()
+        range = episodes
     }
 }
 
@@ -295,7 +301,10 @@ private fun AddTab(
 
             if (voice != null && page.isSeries) {
                 val all = voice.episodes.indices.toSet()
-                val toggleAll = { state.selected = if (state.selected.size == all.size) emptySet() else all }
+                val toggleAll = {
+                    state.selected = if (state.selected.size == all.size) emptySet() else all
+                    state.range = all.indices
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -311,6 +320,29 @@ private fun AddTab(
                         onClick = toggleAll,
                     )
                     Text("All (${state.selected.size} / ${all.size})", style = MaterialTheme.typography.titleSmall)
+                }
+                // Selects exactly the episodes between the two thumbs; checkboxes can fine-tune afterwards.
+                if (all.size >= 3) {
+                    val last = all.size - 1
+                    Column {
+                        Text(
+                            "Episodes ${state.range.first + 1} – ${state.range.last + 1}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        RangeSlider(
+                            value = state.range.first.toFloat()..state.range.last.toFloat(),
+                            onValueChange = { value ->
+                                val range = value.start.roundToInt()..value.endInclusive.roundToInt()
+                                if (range != state.range) {
+                                    state.range = range
+                                    state.selected = range.toSet()
+                                }
+                            },
+                            valueRange = 0f..last.toFloat(),
+                            // Snap to whole episodes; tick marks only while they don't merge into a line.
+                            steps = if (last <= 30) last - 1 else 0,
+                        )
+                    }
                 }
                 HorizontalDivider()
                 val titleStyle = MaterialTheme.typography.bodyMedium
