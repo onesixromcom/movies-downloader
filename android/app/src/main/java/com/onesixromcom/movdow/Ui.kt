@@ -28,9 +28,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -82,6 +85,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -305,25 +311,59 @@ private fun AddTab(
                     Text("All (${state.selected.size} / ${all.size})", style = MaterialTheme.typography.titleSmall)
                 }
                 HorizontalDivider()
-                LazyColumn(Modifier.weight(1f)) {
-                    itemsIndexed(voice.episodes) { index, episode ->
-                        val toggle = {
-                            state.selected = if (index in state.selected) state.selected - index else state.selected + index
-                        }
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = toggle),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = index in state.selected, onCheckedChange = { toggle() })
-                            Text(episode.title)
+                val titleStyle = MaterialTheme.typography.bodyMedium
+                val measurer = rememberTextMeasurer()
+                val density = LocalDensity.current
+                // Widest title in dp, measured once per voice.
+                val titleWidth = remember(voice, titleStyle, density) {
+                    val px = voice.episodes.maxOfOrNull { measurer.measure(it.title, titleStyle, maxLines = 1).size.width } ?: 0
+                    with(density) { px.toDp() }
+                }
+                BoxWithConstraints(Modifier.weight(1f)) {
+                    val columns = episodeColumns(maxWidth, titleWidth)
+                    LazyVerticalGrid(columns = GridCells.Fixed(columns)) {
+                        itemsIndexed(voice.episodes) { index, episode ->
+                            val toggle = {
+                                state.selected = if (index in state.selected) state.selected - index else state.selected + index
+                            }
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = toggle)
+                                    .padding(end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(checked = index in state.selected, onCheckedChange = { toggle() })
+                                Text(
+                                    episode.title,
+                                    style = titleStyle,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * Columns of the episode grid for [width] available and the widest episode title [titleWidth].
+ *
+ * A cell is the checkbox (48dp touch target) + the title + 4dp end padding, kept within 100..200dp:
+ * short titles ("Серія 12", ~55dp) give 107dp cells, long ones ("Сезон 1 Серія 12", ~115dp) 167dp,
+ * and anything longer wraps to 2 lines in a 200dp cell.
+ *
+ * Available width is the screen minus 32dp of tab padding:
+ * - phone portrait (360..430dp screen, 328..398dp available): 3 columns for short titles, 2 for long;
+ * - phone landscape (~640..930dp screen, ~600..880dp available): 4 for short, 3..4 for long.
+ * Never fewer than 2 (titles wrap instead) and never more than 4 (wider cells read better on tablets).
+ */
+private fun episodeColumns(width: Dp, titleWidth: Dp): Int {
+    val cell = (titleWidth + 52.dp).coerceIn(100.dp, 200.dp)
+    return (width / cell).toInt().coerceIn(2, 4)
 }
 
 @Composable

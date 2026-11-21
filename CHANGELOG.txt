@@ -1,5 +1,8 @@
 CHANGELOG
 
+1.4.0
+- display episodes selector in columns
+
 1.3.0
 - check storage space when processing actions
 - single instance of the app
