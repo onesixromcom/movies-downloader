@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -366,6 +368,7 @@ private fun episodeColumns(width: Dp, titleWidth: Dp): Int {
     return (width / cell).toInt().coerceIn(2, 4)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun QueueTab(items: List<DownloadItem>, paused: Boolean) {
     // Text of the confirmation and the action to run.
@@ -378,7 +381,8 @@ private fun QueueTab(items: List<DownloadItem>, paused: Boolean) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Wraps: the three buttons don't fit one line on narrow phones.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { DownloadManager.setPaused(!paused) }, enabled = hasWork || paused) {
                 Text(if (paused) "Resume" else "Pause")
             }
@@ -386,6 +390,10 @@ private fun QueueTab(items: List<DownloadItem>, paused: Boolean) {
                 onClick = { confirm = "Remove all ${items.size} items from the queue?" to DownloadManager::removeAll },
                 enabled = items.isNotEmpty(),
             ) { Text("Remove all") }
+            OutlinedButton(
+                onClick = DownloadManager::clearCompleted,
+                enabled = items.any { it.status == DownloadStatus.DONE },
+            ) { Text("Clear completed") }
         }
         if (paused) Text("Downloads are paused.", color = MaterialTheme.colorScheme.primary)
         if (items.isEmpty()) {

@@ -162,6 +162,16 @@ object DownloadManager {
         save()
     }
 
+    /** Remove finished items from the list; the downloaded files stay. */
+    fun clearCompleted() {
+        val done = _items.value.filter { it.status == DownloadStatus.DONE }.map { it.id }.toSet()
+        if (done.isEmpty()) return
+        AppLog.i("Cleared ${done.size} completed items from the queue")
+        _items.update { list -> list.filterNot { it.id in done } }
+        done.forEach { tempDir(it).deleteRecursively() }
+        save()
+    }
+
     /** Start processing the queue (and the foreground service) if there is something to download. */
     fun start() {
         if (_paused.value || _items.value.none { it.status == DownloadStatus.QUEUED }) return
